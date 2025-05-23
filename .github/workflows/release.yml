@@ -1,0 +1,115 @@
+name: Build and Release APK
+
+on:
+  push:
+    tags:
+      - 'v*' # 当推送以v开头的标签时触发，例如v1.0.0
+  workflow_dispatch: # 添加手动触发选项
+    inputs:
+      version-tag:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+      is-prerelease:
+        description: 'Mark as pre-release'
+        type: boolean
+        default: false
+      build-type:
+        description: 'Build type'
+        type: choice
+        options:
+          - apk
+          - appbundle
+        default: 'apk'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 获取完整历史记录以便创建标签
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.0'
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Create version tag (manual trigger only)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git tag ${{ inputs.version-tag }}
+          git push origin ${{ inputs.version-tag }}
+
+      - name: Build APK or App Bundle
+        run: |
+          if [ "${{ inputs.build-type || 'apk' }}" = "appbundle" ]; then
+            flutter build appbundle --release
+          else
+            flutter build apk --release
+          fi
+
+      - name: Upload APK/App Bundle as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifact
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+
+      - name: Determine release info
+        id: release-info
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag_name=${{ inputs.version-tag }}" >> $GITHUB_OUTPUT
+            echo "release_name=Release ${{ inputs.version-tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag_name=${{ github.ref }}" >> $GITHUB_OUTPUT
+            echo "release_name=Release ${{ github.ref }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.release-info.outputs.tag_name }}
+          release_name: ${{ steps.release-info.outputs.release_name }}
+          draft: false
+          prerelease: ${{ inputs.is-prerelease || false }}
+
+      - name: Upload APK Release Asset
+        if: ${{ (inputs.build-type || 'apk') == 'apk' }}
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: build/app/outputs/flutter-apk/app-release.apk
+          asset_name: app-release.apk
+          asset_content_type: application/vnd.android.package-archive
+
+      - name: Upload App Bundle Release Asset
+        if: ${{ inputs.build-type == 'appbundle' }}
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: build/app/outputs/bundle/release/app-release.aab
+          asset_name: app-release.aab
+          asset_content_type: application/vnd.android.package-archive
