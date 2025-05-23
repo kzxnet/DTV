@@ -9,6 +9,7 @@ android {
     namespace = "com.example.libretv_app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+    buildToolsVersion "34.0.0"  // 添加这一行
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

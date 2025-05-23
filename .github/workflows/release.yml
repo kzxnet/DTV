@@ -27,6 +27,7 @@ permissions:
 env:
   FLUTTER_VERSION: '3.32.0'
   BUILD_CACHE_KEY: ${{ github.sha }}
+  ANDROID_BUILD_TOOLS: "34.0.0" # 与你的项目 build.gradle 保持一致
 
 jobs:
   build-and-release:
@@ -65,6 +66,12 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v2
+        with:
+          build-tools-version: ${{ env.ANDROID_BUILD_TOOLS }}
+          platform-version: "34" # 对应 Android 14
+
       - name: Create version tag (manual trigger only)
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
@@ -84,12 +91,19 @@ jobs:
       - name: Sign APK (仅当构建类型为apk时执行)
         if: ${{ github.event.inputs.build-type == 'apk' || github.event.inputs.build-type == '' }}
         run: |
-          # 1. 从GitHub Secrets获取签名密钥和密码
-          echo "${{ secrets.ANDROID_KEYSTORE }}" > android/keystore.jks
+          # 1. 配置 Android SDK 路径
+          export PATH="$ANDROID_HOME/build-tools/${{ env.ANDROID_BUILD_TOOLS }}:$PATH"
+          
+          # 2. 验证 apksigner 是否可用
+          which apksigner
+          apksigner --version
+
+          # 3. 从GitHub Secrets获取签名密钥和密码
+          echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 --decode > android/keystore.jks
           echo "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" > keystore_password.txt
           echo "${{ secrets.KEY_PASSWORD }}" > key_password.txt
 
-          # 2. 使用apksigner对APK进行签名
+          # 4. 使用apksigner对APK进行签名
           for apk in build/app/outputs/flutter-apk/*.apk; do
             apksigner sign \
               --ks android/keystore.jks \
@@ -99,7 +113,12 @@ jobs:
               "$apk"
           done
 
-          # 3. 清理敏感文件
+          # 5. 验证签名
+          for apk in build/app/outputs/flutter-apk/*.apk; do
+            apksigner verify --verbose "$apk"
+          done
+
+          # 6. 清理敏感文件
           rm -f android/keystore.jks keystore_password.txt key_password.txt
 
       - name: Determine release info
