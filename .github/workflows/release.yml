@@ -27,9 +27,6 @@ permissions:
   issues: write
   deployments: write
 
-env:
-  FLUTTER_VERSION: '3.32.0' # 定义Flutter版本变量
-
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
@@ -40,40 +37,19 @@ jobs:
         with:
           fetch-depth: 0 # 获取完整历史记录以便创建标签
 
-      - name: Cache Flutter SDK
-        uses: actions/cache@v3
-        id: cache-flutter
-        with:
-          path: /opt/hostedtoolcache/flutter
-          key: flutter-${{ env.FLUTTER_VERSION }}
-
-      - name: Set up Flutter
-        if: steps.cache-flutter.outputs.cache-hit != 'true'
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
-          cache: true
-          cache-key: flutter-${{ env.FLUTTER_VERSION }}-stable
-          cache-path: /opt/hostedtoolcache/flutter
-
-      - name: Cache Pub dependencies
-        uses: actions/cache@v3
-        id: cache-pub
-        with:
-          path: |
-            ~/.pub-cache
-            **/build
-          key: pub-${{ hashFiles('**/pubspec.lock') }}
-
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
 
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.0'
+          channel: 'stable'
+
       - name: Install dependencies
-        if: steps.cache-pub.outputs.cache-hit != 'true'
         run: flutter pub get
 
       - name: Create version tag (manual trigger only)
