@@ -4,7 +4,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'dart:io';
 import 'package:open_file/open_file.dart';
+import 'package:android_intent_plus/android_intent.dart';
+import 'package:android_intent_plus/flag.dart';
 
 class AppUpdater {
   static final Dio _dio = Dio();
@@ -160,14 +163,21 @@ class AppUpdater {
         return;
       }
 
+      // 请求安装未知来源应用的权限
+      if (Platform.isAndroid) {
+        if (!await Permission.requestInstallPackages.isGranted) {
+          await Permission.requestInstallPackages.request();
+        }
+      }
+
       setState(() {
         _isDownloading = true;
         _downloadProgress = 0;
       });
 
       _cancelToken = CancelToken();
-      final dir = await getApplicationDocumentsDirectory();
-      final savePath = '${dir.path}/DTV_${DateTime.now().millisecondsSinceEpoch}.apk';
+      final dir = await getTemporaryDirectory();
+      final savePath = '${dir.path}/update_${DateTime.now().millisecondsSinceEpoch}.apk';
 
       await _dio.download(
         apkUrl,
@@ -191,7 +201,9 @@ class AppUpdater {
       }
 
       // 安装APK
-      await OpenFile.open(savePath);
+      if (Platform.isAndroid) {
+        await _installApk(savePath);
+      }
 
     } catch (e) {
       debugPrint('下载失败: $e');
@@ -203,6 +215,26 @@ class AppUpdater {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('下载失败: ${e.toString()}')),
         );
+      }
+    }
+  }
+
+  static Future<void> _installApk(String apkPath) async {
+    if (await File(apkPath).exists()) {
+      try {
+        if (Platform.isAndroid) {
+          final intent = AndroidIntent(
+            action: 'action_view',
+            type: 'application/vnd.android.package-archive',
+            data: Uri.fromFile(File(apkPath)).toString(),
+            flags: <int>[Flag.FLAG_ACTIVITY_NEW_TASK],
+          );
+          await intent.launch();
+        }
+      } catch (e) {
+        debugPrint('安装失败: $e');
+        // 如果使用intent失败，尝试使用open_file
+        await OpenFile.open(apkPath);
       }
     }
   }
