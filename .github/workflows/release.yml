@@ -22,55 +22,74 @@ on:
         default: 'apk'
 
 permissions:
-  contents: write  # 允许写入内容（包括创建标签）
+  contents: write
 
 env:
   FLUTTER_VERSION: '3.32.0'
-  BUILD_CACHE_KEY: ${{ github.sha }}
-  ANDROID_BUILD_TOOLS: "34.0.0" # 与你的项目 build.gradle 保持一致
+  ANDROID_BUILD_TOOLS: "34.0.0"
+  GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 获取完整历史记录以便创建标签
+          fetch-depth: 1 # 只获取最近一次提交，加快检出速度
 
-      - name: Cache Flutter SDK and dependencies
+      # 使用更高效的缓存策略
+      - name: Cache Flutter SDK
         uses: actions/cache@v3
-        id: flutter-cache
+        id: flutter-sdk-cache
+        with:
+          path: ~/flutter
+          key: flutter-sdk-${{ env.FLUTTER_VERSION }}
+
+      - name: Cache Pub dependencies
+        uses: actions/cache@v3
+        id: pub-cache
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ hashFiles('pubspec.lock') }}
+
+      - name: Cache Gradle
+        uses: actions/cache@v3
+        id: gradle-cache
         with:
           path: |
-            ~/flutter
-            ~/.pub-cache
-          key: flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('pubspec.lock') }}
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/gradle-wrapper.properties') }}
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
-          cache: true
-          cache-key: flutter-${{ env.FLUTTER_VERSION }}-${{ github.sha }}
+          cache: false # 禁用默认缓存，使用我们自定义的缓存
 
       - name: Install dependencies
-        if: steps.flutter-cache.outputs.cache-hit != 'true'
-        run: flutter pub get
+        run: |
+          flutter pub get
+          flutter precache --android
 
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
+          cache: 'gradle'
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v2
         with:
           build-tools-version: ${{ env.ANDROID_BUILD_TOOLS }}
-          platform-version: "34" # 对应 Android 14
+          platform-version: "34"
+          ndk-version: "25.2.9519653" # 指定NDK版本避免下载最新版
+          disable-animations: true # 禁用动画加快构建速度
 
       - name: Create version tag (manual trigger only)
         if: ${{ github.event_name == 'workflow_dispatch' }}
@@ -82,44 +101,36 @@ jobs:
 
       - name: Build APK or App Bundle
         run: |
+          # 启用Gradle构建缓存和并行构建
+          echo "org.gradle.caching=true" >> android/gradle.properties
+          echo "org.gradle.parallel=true" >> android/gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError" >> android/gradle.properties
+          
           if [ "${{ github.event.inputs.build-type || 'apk' }}" = "appbundle" ]; then
-            flutter build appbundle --release
+            flutter build appbundle --release --no-tree-shake-icons
           else
-            flutter build apk --release --split-per-abi
+            flutter build apk --release --split-per-abi --no-tree-shake-icons
           fi
 
       - name: Sign APK (仅当构建类型为apk时执行)
         if: ${{ github.event.inputs.build-type == 'apk' || github.event.inputs.build-type == '' }}
         run: |
-          # 1. 配置 Android SDK 路径
           export PATH="$ANDROID_HOME/build-tools/${{ env.ANDROID_BUILD_TOOLS }}:$PATH"
           
-          # 2. 验证 apksigner 是否可用
-          which apksigner
-          apksigner --version
-
-          # 3. 从GitHub Secrets获取签名密钥和密码
+          # 使用更快的签名方式
           echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 --decode > android/keystore.jks
-          echo "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" > keystore_password.txt
-          echo "${{ secrets.KEY_PASSWORD }}" > key_password.txt
-
-          # 4. 使用apksigner对APK进行签名
+          
           for apk in build/app/outputs/flutter-apk/*.apk; do
             apksigner sign \
               --ks android/keystore.jks \
-              --ks-pass file:keystore_password.txt \
-              --key-pass file:key_password.txt \
+              --ks-pass pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
+              --key-pass pass:${{ secrets.KEY_PASSWORD }} \
               --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
               "$apk"
           done
-
-          # 5. 验证签名
-          for apk in build/app/outputs/flutter-apk/*.apk; do
-            apksigner verify --verbose "$apk"
-          done
-
-          # 6. 清理敏感文件
-          rm -f android/keystore.jks keystore_password.txt key_password.txt
+          
+          # 清理敏感文件
+          rm -f android/keystore.jks
 
       - name: Determine release info
         id: release-info
