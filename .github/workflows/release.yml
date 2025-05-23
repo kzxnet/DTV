@@ -49,8 +49,8 @@ jobs:
       - name: Create version tag (manual trigger only)
         if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
+          git config --global user.name "laopaoer-wallet"
+          git config --global user.email "laopaoer@protonmail.com"
           git tag ${{ inputs.version-tag }}
           git push origin ${{ inputs.version-tag }}
 
