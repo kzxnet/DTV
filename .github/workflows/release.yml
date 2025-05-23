@@ -23,12 +23,10 @@ on:
 
 permissions:
   contents: write  # 允许写入内容（包括创建标签）
-  pull-requests: write
-  issues: write
-  deployments: write
 
 env:
-  FLUTTER_VERSION: '3.32.0' # 定义Flutter版本变量
+  FLUTTER_VERSION: '3.32.0'
+  BUILD_CACHE_KEY: ${{ github.sha }}
 
 jobs:
   build-and-release:
@@ -40,31 +38,24 @@ jobs:
         with:
           fetch-depth: 0 # 获取完整历史记录以便创建标签
 
-      - name: Cache Flutter SDK
+      - name: Cache Flutter SDK and dependencies
         uses: actions/cache@v3
-        id: cache-flutter
+        id: flutter-cache
         with:
-          path: /opt/hostedtoolcache/flutter
-          key: flutter-${{ env.FLUTTER_VERSION }}
+          path: |
+            ~/flutter
+            ~/.pub-cache
+          key: flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('pubspec.lock') }}
 
       - name: Set up Flutter
-        if: steps.cache-flutter.outputs.cache-hit != 'true'
+        if: steps.flutter-cache.outputs.cache-hit != 'true'
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
-          cache-key: flutter-${{ env.FLUTTER_VERSION }}-stable
-          cache-path: /opt/hostedtoolcache/flutter
-
-      - name: Cache Pub dependencies
-        uses: actions/cache@v3
-        id: cache-pub
-        with:
-          path: |
-            ~/.pub-cache
-            **/build
-          key: pub-${{ hashFiles('**/pubspec.lock') }}
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('pubspec.lock') }}
+          cache-path: ~/flutter
 
       - name: Set up JDK
         uses: actions/setup-java@v3
@@ -73,7 +64,7 @@ jobs:
           java-version: '17'
 
       - name: Install dependencies
-        if: steps.cache-pub.outputs.cache-hit != 'true'
+        if: steps.flutter-cache.outputs.cache-hit != 'true'
         run: flutter pub get
 
       - name: Create version tag (manual trigger only)
@@ -81,65 +72,37 @@ jobs:
         run: |
           git config --global user.name "laopaoer-wallet"
           git config --global user.email "laopaoer@protonmail.com"
-          git tag ${{ inputs.version-tag }}
-          git push origin ${{ inputs.version-tag }}
+          git tag ${{ github.event.inputs.version-tag }}
+          git push origin ${{ github.event.inputs.version-tag }}
 
       - name: Build APK or App Bundle
         run: |
-          if [ "${{ inputs.build-type || 'apk' }}" = "appbundle" ]; then
+          if [ "${{ github.event.inputs.build-type || 'apk' }}" = "appbundle" ]; then
             flutter build appbundle --release
           else
-            flutter build apk --release
+            flutter build apk --release --split-per-abi
           fi
-
-      - name: Upload APK/App Bundle as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-artifact
-          path: |
-            build/app/outputs/flutter-apk/app-release.apk
-            build/app/outputs/bundle/release/app-release.aab
 
       - name: Determine release info
         id: release-info
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag_name=${{ inputs.version-tag }}" >> $GITHUB_OUTPUT
-            echo "release_name=Release ${{ inputs.version-tag }}" >> $GITHUB_OUTPUT
+            echo "tag=${{ github.event.inputs.version-tag }}" >> $GITHUB_OUTPUT
+            echo "release_name=Release ${{ github.event.inputs.version-tag }}" >> $GITHUB_OUTPUT
           else
-            echo "tag_name=${{ github.ref }}" >> $GITHUB_OUTPUT
-            echo "release_name=Release ${{ github.ref }}" >> $GITHUB_OUTPUT
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "release_name=Release ${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.release-info.outputs.tag }}
+          name: ${{ steps.release-info.outputs.release_name }}
+          prerelease: ${{ github.event.inputs.is-prerelease || false }}
+          generate_release_notes: true
+          files: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.release-info.outputs.tag_name }}
-          release_name: ${{ steps.release-info.outputs.release_name }}
-          draft: false
-          prerelease: ${{ inputs.is-prerelease || false }}
-
-      - name: Upload APK Release Asset
-        if: ${{ (inputs.build-type || 'apk') == 'apk' }}
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/app/outputs/flutter-apk/app-release.apk
-          asset_name: app-release.apk
-          asset_content_type: application/vnd.android.package-archive
-
-      - name: Upload App Bundle Release Asset
-        if: ${{ inputs.build-type == 'appbundle' }}
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/app/outputs/bundle/release/app-release.aab
-          asset_name: app-release.aab
-          asset_content_type: application/vnd.android.package-archive
