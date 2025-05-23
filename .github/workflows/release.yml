@@ -21,6 +21,12 @@ on:
           - appbundle
         default: 'apk'
 
+permissions:
+  contents: write  # 允许写入内容（包括创建标签）
+  pull-requests: write
+  issues: write
+  deployments: write
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
