@@ -30,7 +30,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  dio: ^5.4.2 # 网络请求
+  dio: ^5.8.0+1 # 网络请求
   provider: ^6.1.1 # 状态管理
   video_player: ^2.8.3 # 视频播放器
   chewie: ^1.5.2 # 视频控制UI
