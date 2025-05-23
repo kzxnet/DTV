@@ -226,7 +226,7 @@ class AppUpdater {
           final intent = AndroidIntent(
             action: 'action_view',
             type: 'application/vnd.android.package-archive',
-            data: Uri.fromFile(File(apkPath)).toString(),
+            data: Uri.file(apkPath).toString(),  // 使用 Uri.file 替代 Uri.fromFile
             flags: <int>[Flag.FLAG_ACTIVITY_NEW_TASK],
           );
           await intent.launch();
