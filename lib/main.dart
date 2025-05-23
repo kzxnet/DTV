@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:libretv_app/update_checker.dart';
 import 'package:video_player/video_player.dart';
 import 'package:dio/dio.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -8,6 +9,7 @@ import 'package:chewie/chewie.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -60,8 +62,34 @@ class MyApp extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
         ),
       ),
-      home: const SearchPage(),
+      home: const AppWrapper(),
     );
+  }
+}
+
+class AppWrapper extends StatefulWidget {
+  const AppWrapper({super.key});
+
+  @override
+  State<AppWrapper> createState() => _AppWrapperState();
+}
+
+class _AppWrapperState extends State<AppWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    _checkForUpdates();
+  }
+
+  Future<void> _checkForUpdates() async {
+    // 延迟1秒检查，确保UI已经加载完成
+    await Future.delayed(const Duration(seconds: 1));
+    await AppUpdater.checkForUpdate(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const SearchPage();
   }
 }
 
