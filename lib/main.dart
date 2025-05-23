@@ -777,12 +777,33 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   }
 
   void _changeEpisode(int index) async {
+    // 边界检查
+    if (widget.episodes.isEmpty) return;
+    if (index < 0 || index >= widget.episodes.length) return;
     if (index == _currentEpisodeIndex) {
       setState(() {
         _showEpisodeMenu = false;
-        _playerFocusNode.requestFocus();
+      });
+      _playerFocusNode.requestFocus();
+      return;
+    }
+
+    final url = widget.episodes[index]['url'];
+    if (url == null || url.isEmpty) {
+      setState(() {
+        _errorMessage = '无效的视频URL';
+        _isLoading = false;
       });
       return;
+    }
+
+    // 释放旧资源
+    try {
+      await _controller?.pause();
+      await _controller?.dispose();
+      _chewieController?.dispose();
+    } catch (e) {
+      debugPrint('释放旧控制器错误: $e');
     }
 
     setState(() {
@@ -792,11 +813,34 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       _showEpisodeMenu = false;
     });
 
-    await _controller.dispose();
-    _chewieController?.dispose();
-    await _initializePlayer(widget.episodes[index]['url']!);
+    try {
+      // 初始化新控制器
+      _controller = VideoPlayerController.network(url);
+      await _controller.initialize();
+      _setupWakelockListener();
 
-    // Return focus to player after changing episode
+      _chewieController = ChewieController(
+        videoPlayerController: _controller,
+        autoPlay: true,
+        looping: false,
+        // 其他配置...
+      );
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = '播放失败: ${e.toString()}';
+        });
+      }
+      debugPrint('初始化播放器错误: $e');
+    }
+
     _playerFocusNode.requestFocus();
   }
 
