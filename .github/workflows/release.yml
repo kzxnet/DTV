@@ -48,24 +48,23 @@ jobs:
           key: flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('pubspec.lock') }}
 
       - name: Set up Flutter
-        if: steps.flutter-cache.outputs.cache-hit != 'true'
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
-          cache: true
-          cache-key: flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('pubspec.lock') }}
-          cache-path: ~/flutter
+            flutter-version: ${{ env.FLUTTER_VERSION }}
+            channel: 'stable'
+            cache: true
+            cache-key: flutter-${{ env.FLUTTER_VERSION }}-${{ github.sha }}
+
+      - name: Install dependencies
+        if: steps.flutter-cache.outputs.cache-hit != 'true'
+        run: flutter pub get
+
 
       - name: Set up JDK
         uses: actions/setup-java@v3
         with:
           distribution: 'zulu'
           java-version: '17'
-
-      - name: Install dependencies
-        if: steps.flutter-cache.outputs.cache-hit != 'true'
-        run: flutter pub get
 
       - name: Create version tag (manual trigger only)
         if: ${{ github.event_name == 'workflow_dispatch' }}
