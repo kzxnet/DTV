@@ -50,15 +50,14 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-            flutter-version: ${{ env.FLUTTER_VERSION }}
-            channel: 'stable'
-            cache: true
-            cache-key: flutter-${{ env.FLUTTER_VERSION }}-${{ github.sha }}
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}-${{ github.sha }}
 
       - name: Install dependencies
         if: steps.flutter-cache.outputs.cache-hit != 'true'
         run: flutter pub get
-
 
       - name: Set up JDK
         uses: actions/setup-java@v3
@@ -81,6 +80,27 @@ jobs:
           else
             flutter build apk --release --split-per-abi
           fi
+
+      - name: Sign APK (仅当构建类型为apk时执行)
+        if: ${{ github.event.inputs.build-type == 'apk' || github.event.inputs.build-type == '' }}
+        run: |
+          # 1. 从GitHub Secrets获取签名密钥和密码
+          echo "${{ secrets.ANDROID_KEYSTORE }}" > android/keystore.jks
+          echo "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" > keystore_password.txt
+          echo "${{ secrets.KEY_PASSWORD }}" > key_password.txt
+
+          # 2. 使用apksigner对APK进行签名
+          for apk in build/app/outputs/flutter-apk/*.apk; do
+            apksigner sign \
+              --ks android/keystore.jks \
+              --ks-pass file:keystore_password.txt \
+              --key-pass file:key_password.txt \
+              --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
+              "$apk"
+          done
+
+          # 3. 清理敏感文件
+          rm -f android/keystore.jks keystore_password.txt key_password.txt
 
       - name: Determine release info
         id: release-info
