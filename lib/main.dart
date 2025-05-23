@@ -40,10 +40,11 @@ class _SearchPageState extends State<SearchPage> {
     });
 
     try {
-      final response = await _dio.get(
-        "https://bfzyapi.com/api.php/provide/vod",
-        queryParameters: {'ac': 'videolist', 'wd': keyword},
-      );
+
+
+      final proxyUrl = 'https://aini.us.kg/proxy/https%3A%2F%2Fbfzyapi.com%2Fapi.php%2Fprovide%2Fvod%3Fac%3Dvideolist%26wd%3D${Uri.encodeComponent(keyword)}';
+
+      final response = await _dio.get(proxyUrl);
 
       if (response.data['code'] == 1) {
         setState(() {
