@@ -22,10 +22,11 @@ on:
         default: 'apk'
 
 permissions:
-  contents: write  # 允许写入内容（包括创建标签）
-  pull-requests: write
-  issues: write
-  deployments: write
+  contents: write # 允许创建发布和上传资源
+
+env:
+  FLUTTER_VERSION: '3.32.0'
+  BUILD_CACHE_KEY: ${{ github.sha }}
 
 jobs:
   build-and-release:
@@ -35,7 +36,24 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # 获取完整历史记录以便创建标签
+          fetch-depth: 0
+
+      - name: Cache Flutter SDK
+        uses: actions/cache@v3
+        id: flutter-cache
+        with:
+          path: |
+            ~/flutter
+            ~/.pub-cache
+          key: flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('pubspec.lock') }}
+
+      - name: Set up Flutter
+        if: steps.flutter-cache.outputs.cache-hit != 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
 
       - name: Set up JDK
         uses: actions/setup-java@v3
@@ -43,13 +61,8 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.32.0'
-          channel: 'stable'
-
       - name: Install dependencies
+        if: steps.flutter-cache.outputs.cache-hit != 'true'
         run: flutter pub get
 
       - name: Create version tag (manual trigger only)
@@ -65,57 +78,27 @@ jobs:
           if [ "${{ inputs.build-type || 'apk' }}" = "appbundle" ]; then
             flutter build appbundle --release
           else
-            flutter build apk --release
+            flutter build apk --release --split-per-abi
           fi
-
-      - name: Upload APK/App Bundle as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-artifact
-          path: |
-            build/app/outputs/flutter-apk/app-release.apk
-            build/app/outputs/bundle/release/app-release.aab
 
       - name: Determine release info
         id: release-info
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag_name=${{ inputs.version-tag }}" >> $GITHUB_OUTPUT
-            echo "release_name=Release ${{ inputs.version-tag }}" >> $GITHUB_OUTPUT
+            echo "tag=${inputs.version-tag}" >> $GITHUB_OUTPUT
           else
-            echo "tag_name=${{ github.ref }}" >> $GITHUB_OUTPUT
-            echo "release_name=Release ${{ github.ref }}" >> $GITHUB_OUTPUT
+            echo "tag=${github.ref_name}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.release-info.outputs.tag_name }}
-          release_name: ${{ steps.release-info.outputs.release_name }}
-          draft: false
+          tag_name: ${{ steps.release-info.outputs.tag }}
+          name: Release ${{ steps.release-info.outputs.tag }}
           prerelease: ${{ inputs.is-prerelease || false }}
-
-      - name: Upload APK Release Asset
-        if: ${{ (inputs.build-type || 'apk') == 'apk' }}
-        uses: actions/upload-release-asset@v1
+          generate_release_notes: true
+          files: |
+            build/app/outputs/flutter-apk/*.apk
+            build/app/outputs/bundle/release/*.aab
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/app/outputs/flutter-apk/app-release.apk
-          asset_name: app-release.apk
-          asset_content_type: application/vnd.android.package-archive
-
-      - name: Upload App Bundle Release Asset
-        if: ${{ inputs.build-type == 'appbundle' }}
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/app/outputs/bundle/release/app-release.aab
-          asset_name: app-release.aab
-          asset_content_type: application/vnd.android.package-archive
