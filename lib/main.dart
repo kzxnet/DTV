@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:video_player/video_player.dart';
 import 'package:dio/dio.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:chewie/chewie.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 void main() {
   runApp(const MyApp());
@@ -16,21 +18,46 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: '苹果CMS电影播放器',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
+          seedColor: const Color(0xFF0066FF),
           brightness: Brightness.dark,
         ),
         useMaterial3: true,
-        textTheme: const TextTheme(
-          displayLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-          displayMedium: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-          displaySmall: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          headlineMedium: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-          headlineSmall: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          bodyLarge: TextStyle(fontSize: 16),
-          bodyMedium: TextStyle(fontSize: 14),
+        textTheme: GoogleFonts.poppinsTextTheme(const TextTheme(
+          displayLarge: TextStyle(
+              fontSize: 32, fontWeight: FontWeight.w700, letterSpacing: -0.5),
+          displayMedium: TextStyle(
+              fontSize: 28, fontWeight: FontWeight.w600, letterSpacing: -0.5),
+          displaySmall: TextStyle(
+              fontSize: 24, fontWeight: FontWeight.w600, letterSpacing: -0.5),
+          headlineMedium: TextStyle(
+              fontSize: 22, fontWeight: FontWeight.w600, letterSpacing: -0.5),
+          headlineSmall: TextStyle(
+              fontSize: 20, fontWeight: FontWeight.w600, letterSpacing: -0.5),
+          titleLarge: TextStyle(
+              fontSize: 18, fontWeight: FontWeight.w600, letterSpacing: -0.5),
+          bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        )).apply(
+          displayColor: Colors.white,
+          bodyColor: Colors.white,
+        ),
+        appBarTheme: const AppBarTheme(
+          elevation: 0,
+          centerTitle: false,
+          scrolledUnderElevation: 4,
+          surfaceTintColor: Colors.transparent,
+        ),
+        cardTheme: CardThemeData(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          surfaceTintColor: Colors.transparent,
+          margin: EdgeInsets.zero,
+          clipBehavior: Clip.antiAlias,
         ),
       ),
       home: const SearchPage(),
@@ -92,7 +119,13 @@ class _SearchPageState extends State<SearchPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('搜索失败: ${e.toString()}')),
+          SnackBar(
+            content: Text('搜索失败: ${e.toString()}'),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
         );
       }
     } finally {
@@ -106,99 +139,131 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('电影搜索', style: Theme.of(context).textTheme.displaySmall),
+        title: Text(
+          '电影搜索',
+          style: Theme.of(context).textTheme.displaySmall,
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: () {
+              if (_searchController.text.trim().isNotEmpty) {
+                _searchMovies(_searchController.text.trim());
+              }
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
-          // Search area
+          // Search bar
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[200],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: TextField(
-                      controller: _searchController,
-                      focusNode: _searchFocusNode,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                      decoration: const InputDecoration(
-                        hintText: '输入电影名称',
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16),
-                      ),
-                      onSubmitted: (value) {
-                        if (value.trim().isNotEmpty) {
-                          _searchMovies(value.trim());
-                        }
-                      },
-                    ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
                   ),
-                ),
-                const SizedBox(width: 16),
-                SizedBox(
-                  width: 80,
-                  height: 60,
-                  child: FilledButton(
-                    style: FilledButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchController,
+                focusNode: _searchFocusNode,
+                style: Theme.of(context).textTheme.bodyLarge,
+                decoration: InputDecoration(
+                  hintText: '输入电影名称...',
+                  border: InputBorder.none,
+                  prefixIcon: Icon(Icons.search, color: colorScheme.onSurface),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                    icon: Icon(Icons.clear, color: colorScheme.onSurface),
                     onPressed: () {
-                      if (_searchController.text.trim().isNotEmpty) {
-                        _searchMovies(_searchController.text.trim());
-                      }
+                      _searchController.clear();
+                      setState(() {
+                        _movies = [];
+                      });
                     },
-                    child: const Icon(Icons.search, size: 30),
-                  ),
+                  )
+                      : null,
                 ),
-              ],
+                onSubmitted: (value) {
+                  if (value.trim().isNotEmpty) {
+                    _searchMovies(value.trim());
+                  }
+                },
+              ),
             ),
           ),
 
           // Content area
-          if (_isLoading)
-            const Expanded(
-              child: Center(
-                child: CircularProgressIndicator(strokeWidth: 4),
-              ),
-            )
-          else if (_movies.isEmpty)
-            Expanded(
-              child: Center(
-                child: Text(
-                  _searchController.text.isEmpty
-                      ? '请输入搜索关键词'
-                      : '没有找到相关影片',
-                  style: Theme.of(context).textTheme.headlineMedium,
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: _isLoading
+                  ? const Center(
+                child: CircularProgressIndicator(strokeWidth: 3),
+              )
+                  : _movies.isEmpty
+                  ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.movie_creation_outlined,
+                      size: 64,
+                      color: colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      _searchController.text.isEmpty
+                          ? '搜索您想看的电影'
+                          : '没有找到相关影片',
+                      style: Theme.of(context)
+                          .textTheme
+                          .headlineMedium!
+                          .copyWith(
+                        color: colorScheme.onSurface
+                            .withOpacity(0.7),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            )
-          else
-            Expanded(
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              )
+                  : GridView.builder(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                gridDelegate:
+                const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
-                  childAspectRatio: 0.7,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
+                  childAspectRatio: 0.65,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
                 ),
-                padding: const EdgeInsets.all(16),
                 itemCount: _movies.length,
                 itemBuilder: (context, index) {
                   final movie = _movies[index];
                   return Focus(
                     onKeyEvent: (node, event) {
                       if (event is KeyDownEvent) {
-                        if (event.logicalKey == LogicalKeyboardKey.select ||
-                            event.logicalKey == LogicalKeyboardKey.enter) {
+                        if (event.logicalKey ==
+                            LogicalKeyboardKey.select ||
+                            event.logicalKey ==
+                                LogicalKeyboardKey.enter) {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -213,9 +278,7 @@ class _SearchPageState extends State<SearchPage> {
                       return KeyEventResult.ignored;
                     },
                     child: Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      clipBehavior: Clip.antiAlias,
                       child: InkWell(
                         borderRadius: BorderRadius.circular(12),
                         onTap: () {
@@ -229,26 +292,49 @@ class _SearchPageState extends State<SearchPage> {
                           );
                         },
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          crossAxisAlignment:
+                          CrossAxisAlignment.stretch,
                           children: [
                             Expanded(
-                              child: ClipRRect(
-                                borderRadius: const BorderRadius.vertical(
-                                    top: Radius.circular(12)),
-                                child: CachedNetworkImage(
-                                  imageUrl: movie['vod_pic'] ?? '',
-                                  fit: BoxFit.cover,
-                                  placeholder: (context, url) => const Center(
-                                      child: CircularProgressIndicator()),
-                                  errorWidget: (context, url, error) =>
-                                  const Icon(Icons.error, size: 40),
+                              child: Hero(
+                                tag: 'poster-${movie['vod_id']}',
+                                child: ClipRRect(
+                                  borderRadius:
+                                  const BorderRadius.vertical(
+                                      top: Radius.circular(12)),
+                                  child: CachedNetworkImage(
+                                    imageUrl: movie['vod_pic'] ?? '',
+                                    fit: BoxFit.cover,
+                                    placeholder: (context, url) =>
+                                        Container(
+                                          color: colorScheme.surface,
+                                          child: const Center(
+                                            child:
+                                            CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          ),
+                                        ),
+                                    errorWidget:
+                                        (context, url, error) =>
+                                        Container(
+                                          color: colorScheme.surface,
+                                          child: const Center(
+                                            child: Icon(
+                                              Icons.error_outline,
+                                              size: 32,
+                                            ),
+                                          ),
+                                        ),
+                                  ),
                                 ),
                               ),
                             ),
                             Padding(
                               padding: const EdgeInsets.all(8.0),
                               child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                                crossAxisAlignment:
+                                CrossAxisAlignment.start,
                                 children: [
                                   Text(
                                     movie['vod_name'] ?? '未知标题',
@@ -263,7 +349,11 @@ class _SearchPageState extends State<SearchPage> {
                                     '${movie['vod_year'] ?? ''} · ${movie['type_name'] ?? ''}',
                                     style: Theme.of(context)
                                         .textTheme
-                                        .bodyMedium,
+                                        .bodyMedium!
+                                        .copyWith(
+                                      color: colorScheme.onSurface
+                                          .withOpacity(0.7),
+                                    ),
                                   ),
                                 ],
                               ),
@@ -276,6 +366,7 @@ class _SearchPageState extends State<SearchPage> {
                 },
               ),
             ),
+          ),
         ],
       ),
     );
@@ -346,74 +437,119 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.movie['vod_name'] ?? '未知标题',
-            style: Theme.of(context).textTheme.displaySmall),
+        title: Text(
+          widget.movie['vod_name'] ?? '未知标题',
+          style: Theme.of(context).textTheme.displaySmall,
+        ),
       ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Movie poster and basic info
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: CachedNetworkImage(
-                      imageUrl: widget.movie['vod_pic'] ?? '',
-                      width: 120,
-                      height: 180,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => const Center(
-                          child: CircularProgressIndicator()),
-                      errorWidget: (context, url, error) =>
-                      const Icon(Icons.error, size: 40),
+            // Movie header
+            Container(
+              height: 240,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    colorScheme.surface.withOpacity(0.8),
+                    colorScheme.surface,
+                  ],
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Hero(
+                      tag: 'poster-${widget.movie['vod_id']}',
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: CachedNetworkImage(
+                          imageUrl: widget.movie['vod_pic'] ?? '',
+                          width: 120,
+                          height: 180,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
+                            color: colorScheme.surface,
+                            child: const Center(
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            color: colorScheme.surface,
+                            child: const Center(
+                              child: Icon(Icons.error_outline, size: 32),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.movie['vod_name'] ?? '未知标题',
-                          style: Theme.of(context).textTheme.displayMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${widget.movie['vod_year'] ?? ''} · ${widget.movie['type_name'] ?? ''} · ${widget.movie['vod_remarks'] ?? ''}',
-                          style: Theme.of(context).textTheme.headlineMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '主演: ${widget.movie['vod_actor'] ?? '未知'}',
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '导演: ${widget.movie['vod_director'] ?? '未知'}',
-                          style: Theme.of(context).textTheme.bodyLarge,
-                        ),
-                      ],
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.movie['vod_name'] ?? '未知标题',
+                            style: Theme.of(context).textTheme.displayMedium,
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              if (widget.movie['vod_year'] != null)
+                                Chip(
+                                  label: Text(widget.movie['vod_year']!),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              if (widget.movie['type_name'] != null)
+                                Chip(
+                                  label: Text(widget.movie['type_name']!),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                              if (widget.movie['vod_remarks'] != null)
+                                Chip(
+                                  label: Text(widget.movie['vod_remarks']!),
+                                  visualDensity: VisualDensity.compact,
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '主演: ${widget.movie['vod_actor'] ?? '未知'}',
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '导演: ${widget.movie['vod_director'] ?? '未知'}',
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
 
             // Description
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     '剧情简介',
-                    style: Theme.of(context).textTheme.displaySmall,
+                    style: Theme.of(context).textTheme.headlineMedium,
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -428,19 +564,18 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
 
             // Episodes
             if (_episodes.isNotEmpty) ...[
-              const SizedBox(height: 24),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Text(
                   '选集',
-                  style: Theme.of(context).textTheme.displaySmall,
+                  style: Theme.of(context).textTheme.headlineMedium,
                 ),
               ),
               const SizedBox(height: 12),
-              Focus(
-                focusNode: _episodesFocusNode,
-                child: SizedBox(
-                  height: 60,
+              SizedBox(
+                height: 48,
+                child: Focus(
+                  focusNode: _episodesFocusNode,
                   child: ListView.builder(
                     controller: _episodesScrollController,
                     scrollDirection: Axis.horizontal,
@@ -448,7 +583,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                     itemCount: _episodes.length,
                     itemBuilder: (context, index) {
                       return Padding(
-                        padding: const EdgeInsets.only(right: 16.0),
+                        padding: const EdgeInsets.only(right: 12.0),
                         child: Focus(
                           onKeyEvent: (node, event) {
                             if (event is KeyDownEvent) {
@@ -460,11 +595,14 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                             }
                             return KeyEventResult.ignored;
                           },
-                          child: FilledButton(
+                          child: FilledButton.tonal(
                             style: FilledButton.styleFrom(
-                              backgroundColor: Colors.blue,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
                               ),
                             ),
                             onPressed: () => _playEpisode(index),
@@ -473,7 +611,9 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                               style: Theme.of(context)
                                   .textTheme
                                   .bodyLarge!
-                                  .copyWith(color: Colors.white),
+                                  .copyWith(
+                                color: colorScheme.onSurface,
+                              ),
                             ),
                           ),
                         ),
@@ -482,8 +622,8 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                   ),
                 ),
               ),
+              const SizedBox(height: 24),
             ],
-            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -527,6 +667,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     _currentEpisodeIndex = widget.initialIndex;
     _initializePlayer(widget.episodes[_currentEpisodeIndex]['url']!);
 
+
     _playerFocusNode.addListener(() {
       if (_playerFocusNode.hasFocus) {
         setState(() {
@@ -553,13 +694,36 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     });
   }
 
+  void _controlWakelock(bool enable) async {
+    try {
+      enable ? await WakelockPlus.enable() : await WakelockPlus.disable();
+    } catch (e) {
+      debugPrint('Wakelock控制失败: $e');
+    }
+  }
+
+  void _setupWakelockListener() {
+    bool _wasPlaying = false;
+
+    _controller.addListener(() {
+      final isPlaying = _controller.value.isPlaying;
+      if (_wasPlaying != isPlaying) {
+        _wasPlaying = isPlaying;
+        _controlWakelock(isPlaying); // 统一控制
+      }
+    });
+  }
+
+
   @override
   void dispose() {
+    WakelockPlus.disable().catchError((e) => debugPrint(e.toString()));
     _controller.dispose();
     _chewieController?.dispose();
     _playerFocusNode.dispose();
     _episodeMenuFocusNode.dispose();
     _episodeMenuScrollController.dispose();
+    _controller.removeListener(() {});
     super.dispose();
   }
 
@@ -572,6 +736,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     try {
       _controller = VideoPlayerController.network(url);
       await _controller.initialize();
+      _setupWakelockListener();
 
       _chewieController = ChewieController(
         videoPlayerController: _controller,
@@ -581,8 +746,8 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         allowedScreenSleep: false,
         showControls: false,
         materialProgressColors: ChewieProgressColors(
-          playedColor: Colors.blue,
-          handleColor: Colors.blue,
+          playedColor: const Color(0xFF0066FF),
+          handleColor: const Color(0xFF0066FF),
           backgroundColor: Colors.grey,
           bufferedColor: Colors.grey[300]!,
         ),
@@ -676,6 +841,8 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Shortcuts(
@@ -739,7 +906,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                 },
                 child: Center(
                   child: _isLoading
-                      ? const CircularProgressIndicator()
+                      ? const CircularProgressIndicator(strokeWidth: 3)
                       : _errorMessage != null
                       ? Text(
                     _errorMessage!,
@@ -749,6 +916,27 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                 ),
               ),
 
+              // Top gradient overlay
+              if (_showControls)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 100,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withOpacity(0.7),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
               // Bottom controls overlay
               if (_showControls && !_showEpisodeMenu)
                 Positioned(
@@ -756,7 +944,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                   right: 0,
                   bottom: 0,
                   child: Container(
-                    height: 100,
+                    height: 120,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.bottomCenter,
@@ -768,6 +956,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                       ),
                     ),
                     child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         // Progress bar
                         Padding(
@@ -776,13 +965,13 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                             _controller,
                             allowScrubbing: true,
                             colors: VideoProgressColors(
-                              playedColor: Colors.blue,
+                              playedColor: const Color(0xFF0066FF),
                               bufferedColor: Colors.grey,
                               backgroundColor: Colors.grey[600]!,
                             ),
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
                         // Control buttons
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -798,13 +987,14 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                                           ? Icons.pause
                                           : Icons.play_arrow,
                                       color: Colors.white,
+                                      size: 28,
                                     ),
                                     onPressed: _togglePlayPause,
                                   ),
                                   const SizedBox(width: 16),
                                   IconButton(
                                     icon: const Icon(Icons.skip_previous,
-                                        color: Colors.white),
+                                        color: Colors.white, size: 24),
                                     onPressed: _currentEpisodeIndex > 0
                                         ? () => _changeEpisode(
                                         _currentEpisodeIndex - 1)
@@ -812,7 +1002,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                                   ),
                                   IconButton(
                                     icon: const Icon(Icons.skip_next,
-                                        color: Colors.white),
+                                        color: Colors.white, size: 24),
                                     onPressed: _currentEpisodeIndex <
                                         widget.episodes.length - 1
                                         ? () => _changeEpisode(
@@ -822,13 +1012,25 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                                 ],
                               ),
                               // Right side controls
-                              IconButton(
-                                icon: const Icon(Icons.list, color: Colors.white),
-                                onPressed: _toggleEpisodeMenu,
+                              Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.volume_up,
+                                        color: Colors.white, size: 24),
+                                    onPressed: () {},
+                                  ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    icon: const Icon(Icons.list,
+                                        color: Colors.white, size: 24),
+                                    onPressed: _toggleEpisodeMenu,
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
+                        const SizedBox(height: 16),
                       ],
                     ),
                   ),
@@ -838,101 +1040,165 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
               AnimatedPositioned(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
-                right: _showEpisodeMenu ? 0 : -300,
+                right: _showEpisodeMenu ? 0 : -320,
                 top: 0,
                 bottom: 0,
-                child: Focus(
-                  focusNode: _episodeMenuFocusNode,
-                  onKeyEvent: (node, event) {
-                    if (event is KeyDownEvent) {
-                      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-                        // Scroll up in episode list
-                        if (_currentEpisodeIndex > 0) {
-                          setState(() {
-                            _currentEpisodeIndex--;
-                          });
-                          _episodeMenuScrollController.animateTo(
-                            (_currentEpisodeIndex * 56.0).clamp(
-                              0.0,
-                              _episodeMenuScrollController.position.maxScrollExtent,
-                            ),
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeOut,
-                          );
+                child: Container(
+                  width: 320,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.85),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.5),
+                        blurRadius: 16,
+                        offset: const Offset(-8, 0),
+                      ),
+                    ],
+                  ),
+                  child: Focus(
+                    focusNode: _episodeMenuFocusNode,
+                    onKeyEvent: (node, event) {
+                      if (event is KeyDownEvent) {
+                        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                          // Scroll up in episode list
+                          if (_currentEpisodeIndex > 0) {
+                            setState(() {
+                              _currentEpisodeIndex--;
+                            });
+                            _episodeMenuScrollController.animateTo(
+                              (_currentEpisodeIndex * 56.0).clamp(
+                                0.0,
+                                _episodeMenuScrollController.position
+                                    .maxScrollExtent,
+                              ),
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOut,
+                            );
+                          }
+                          return KeyEventResult.handled;
+                        } else if (event.logicalKey ==
+                            LogicalKeyboardKey.arrowDown) {
+                          // Scroll down in episode list
+                          if (_currentEpisodeIndex <
+                              widget.episodes.length - 1) {
+                            setState(() {
+                              _currentEpisodeIndex++;
+                            });
+                            _episodeMenuScrollController.animateTo(
+                              (_currentEpisodeIndex * 56.0).clamp(
+                                0.0,
+                                _episodeMenuScrollController.position
+                                    .maxScrollExtent,
+                              ),
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOut,
+                            );
+                          }
+                          return KeyEventResult.handled;
+                        } else if (event.logicalKey ==
+                            LogicalKeyboardKey.select) {
+                          // Select current highlighted episode
+                          _changeEpisode(_currentEpisodeIndex);
+                          return KeyEventResult.handled;
+                        } else if (event.logicalKey ==
+                            LogicalKeyboardKey.contextMenu) {
+                          // Close episode menu
+                          _toggleEpisodeMenu();
+                          return KeyEventResult.handled;
+                        } else if (event.logicalKey ==
+                            LogicalKeyboardKey.escape) {
+                          // Close episode menu
+                          _toggleEpisodeMenu();
+                          return KeyEventResult.handled;
                         }
-                        return KeyEventResult.handled;
-                      } else if (event.logicalKey ==
-                          LogicalKeyboardKey.arrowDown) {
-                        // Scroll down in episode list
-                        if (_currentEpisodeIndex < widget.episodes.length - 1) {
-                          setState(() {
-                            _currentEpisodeIndex++;
-                          });
-                          _episodeMenuScrollController.animateTo(
-                            (_currentEpisodeIndex * 56.0).clamp(
-                              0.0,
-                              _episodeMenuScrollController.position.maxScrollExtent,
-                            ),
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeOut,
-                          );
-                        }
-                        return KeyEventResult.handled;
-                      } else if (event.logicalKey ==
-                          LogicalKeyboardKey.select) {
-                        // Select current highlighted episode
-                        _changeEpisode(_currentEpisodeIndex);
-                        return KeyEventResult.handled;
-                      } else if (event.logicalKey ==
-                          LogicalKeyboardKey.contextMenu) {
-                        // Close episode menu
-                        _toggleEpisodeMenu();
-                        return KeyEventResult.handled;
-                      } else if (event.logicalKey ==
-                          LogicalKeyboardKey.escape) {
-                        // Close episode menu
-                        _toggleEpisodeMenu();
-                        return KeyEventResult.handled;
                       }
-                    }
-                    return KeyEventResult.ignored;
-                  },
-                  child: Container(
-                    width: 300,
-                    color: Colors.black.withOpacity(0.9),
+                      return KeyEventResult.ignored;
+                    },
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(16.0),
-                          child: Text(
-                            '选集 (${_currentEpisodeIndex + 1}/${widget.episodes.length})',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.close,
+                                    color: Colors.white),
+                                onPressed: _toggleEpisodeMenu,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '选集',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium!
+                                    .copyWith(color: Colors.white),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${_currentEpisodeIndex + 1}/${widget.episodes.length}',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge!
+                                    .copyWith(
+                                  color: Colors.white.withOpacity(0.7),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         Expanded(
                           child: ListView.builder(
                             controller: _episodeMenuScrollController,
+                            padding: const EdgeInsets.only(bottom: 16),
                             itemCount: widget.episodes.length,
                             itemBuilder: (context, index) {
-                              return ListTile(
-                                title: Text(
-                                  widget.episodes[index]['title']!,
-                                  style: TextStyle(
-                                    color: _currentEpisodeIndex == index
-                                        ? Colors.blue
-                                        : Colors.white,
-                                    fontWeight: _currentEpisodeIndex == index
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                child: Material(
+                                  color: _currentEpisodeIndex == index
+                                      ? const Color(0xFF0066FF)
+                                      .withOpacity(0.2)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(8),
+                                    onTap: () => _changeEpisode(index),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12.0),
+                                      child: Row(
+                                        children: [
+                                          if (_currentEpisodeIndex == index)
+                                            const Icon(
+                                              Icons.play_arrow,
+                                              color: Color(0xFF0066FF),
+                                              size: 20,
+                                            ),
+                                          if (_currentEpisodeIndex == index)
+                                            const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              widget.episodes[index]['title']!,
+                                              style: TextStyle(
+                                                color: _currentEpisodeIndex ==
+                                                    index
+                                                    ? const Color(0xFF0066FF)
+                                                    : Colors.white,
+                                                fontWeight:
+                                                _currentEpisodeIndex == index
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                 ),
-                                selected: _currentEpisodeIndex == index,
-                                onTap: () => _changeEpisode(index),
                               );
                             },
                           ),
