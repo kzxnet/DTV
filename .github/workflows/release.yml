@@ -22,7 +22,7 @@ on:
         default: 'apk'
 
 permissions:
-  contents: write # 允许创建发布和上传资源
+  contents: write  # 允许写入内容（包括创建标签）
 
 env:
   FLUTTER_VERSION: '3.32.0'
@@ -36,9 +36,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # 获取完整历史记录以便创建标签
 
-      - name: Cache Flutter SDK
+      - name: Cache Flutter SDK and dependencies
         uses: actions/cache@v3
         id: flutter-cache
         with:
@@ -54,6 +54,8 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}-${{ hashFiles('pubspec.lock') }}
+          cache-path: ~/flutter
 
       - name: Set up JDK
         uses: actions/setup-java@v3
@@ -70,12 +72,12 @@ jobs:
         run: |
           git config --global user.name "laopaoer-wallet"
           git config --global user.email "laopaoer@protonmail.com"
-          git tag ${{ inputs.version-tag }}
-          git push origin ${{ inputs.version-tag }}
+          git tag ${{ github.event.inputs.version-tag }}
+          git push origin ${{ github.event.inputs.version-tag }}
 
       - name: Build APK or App Bundle
         run: |
-          if [ "${{ inputs.build-type || 'apk' }}" = "appbundle" ]; then
+          if [ "${{ github.event.inputs.build-type || 'apk' }}" = "appbundle" ]; then
             flutter build appbundle --release
           else
             flutter build apk --release --split-per-abi
@@ -85,17 +87,19 @@ jobs:
         id: release-info
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${inputs.version-tag}" >> $GITHUB_OUTPUT
+            echo "tag=${{ github.event.inputs.version-tag }}" >> $GITHUB_OUTPUT
+            echo "release_name=Release ${{ github.event.inputs.version-tag }}" >> $GITHUB_OUTPUT
           else
-            echo "tag=${github.ref_name}" >> $GITHUB_OUTPUT
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "release_name=Release ${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release-info.outputs.tag }}
-          name: Release ${{ steps.release-info.outputs.tag }}
-          prerelease: ${{ inputs.is-prerelease || false }}
+          name: ${{ steps.release-info.outputs.release_name }}
+          prerelease: ${{ github.event.inputs.is-prerelease || false }}
           generate_release_notes: true
           files: |
             build/app/outputs/flutter-apk/*.apk
