@@ -82,213 +82,227 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
     final isDark = colorScheme.brightness == Brightness.dark;
 
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Movie header (unchanged)
-            Container(
-              height: 240,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    colorScheme.surface.withOpacity(0.8),
-                    colorScheme.surface,
-                  ],
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Hero(
-                      tag: 'poster-${widget.movie['vod_id']}',
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: CachedNetworkImage(
-                          imageUrl: widget.movie['vod_pic'] ?? '',
-                          width: 120,
-                          height: 180,
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(
-                            color: colorScheme.surface,
-                            child: const Center(
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: colorScheme.surface,
-                            child: const Center(
-                              child: Icon(Icons.error_outline, size: 32),
-                            ),
-                          ),
-                        ),
+      body: Column(
+        children: [
+          // Scrollable content (header and description)
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Movie header (unchanged)
+                  Container(
+                    height: 240,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          colorScheme.surface.withOpacity(0.8),
+                          colorScheme.surface,
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            widget.movie['vod_name'] ?? '未知标题',
-                            style: Theme.of(context).textTheme.displayMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 4,
-                            children: [
-                              if (widget.movie['vod_year'] != null)
-                                Chip(
-                                  label: Text(widget.movie['vod_year']!),
-                                  visualDensity: VisualDensity.compact,
+                          Hero(
+                            tag: 'poster-${widget.movie['vod_id']}',
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: CachedNetworkImage(
+                                imageUrl: widget.movie['vod_pic'] ?? '',
+                                width: 120,
+                                height: 180,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Container(
+                                  color: colorScheme.surface,
+                                  child: const Center(
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
                                 ),
-                              if (widget.movie['type_name'] != null)
-                                Chip(
-                                  label: Text(widget.movie['type_name']!),
-                                  visualDensity: VisualDensity.compact,
+                                errorWidget: (context, url, error) => Container(
+                                  color: colorScheme.surface,
+                                  child: const Center(
+                                    child: Icon(Icons.error_outline, size: 32),
+                                  ),
                                 ),
-                              if (widget.movie['vod_remarks'] != null)
-                                Chip(
-                                  label: Text(widget.movie['vod_remarks']!),
-                                  visualDensity: VisualDensity.compact,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.movie['vod_name'] ?? '未知标题',
+                                  style: Theme.of(context).textTheme.displayMedium,
                                 ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '主演: ${widget.movie['vod_actor'] ?? '未知'}',
-                            style: Theme.of(context).textTheme.bodyLarge,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '导演: ${widget.movie['vod_director'] ?? '未知'}',
-                            style: Theme.of(context).textTheme.bodyLarge,
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  children: [
+                                    if (widget.movie['vod_year'] != null)
+                                      Chip(
+                                        label: Text(widget.movie['vod_year']!),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    if (widget.movie['type_name'] != null)
+                                      Chip(
+                                        label: Text(widget.movie['type_name']!),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    if (widget.movie['vod_remarks'] != null)
+                                      Chip(
+                                        label: Text(widget.movie['vod_remarks']!),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  '主演: ${widget.movie['vod_actor'] ?? '未知'}',
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '导演: ${widget.movie['vod_director'] ?? '未知'}',
+                                  style: Theme.of(context).textTheme.bodyLarge,
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Description (unchanged)
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '剧情简介',
-                    style: Theme.of(context).textTheme.headlineMedium,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.movie['vod_content'] ??
-                        widget.movie['vod_blurb'] ??
-                        '暂无简介',
-                    style: Theme.of(context).textTheme.bodyLarge,
+
+                  // Description with flexible height
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '剧情简介',
+                          style: Theme.of(context).textTheme.headlineMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          widget.movie['vod_content'] ??
+                              widget.movie['vod_blurb'] ??
+                              '暂无简介',
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
+          ),
 
-            // Episodes with enhanced focus handling
-            if (_episodes.isNotEmpty) ...[
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: Text(
-                  '选集',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 56,
-                child: Focus(
-                  focusNode: _episodesFocusNode,
-                  autofocus: true,
-                  child: ListView.builder(
-                    controller: _episodesScrollController,
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _episodes.length,
-                    itemBuilder: (context, index) {
-                      final isFocused = _focusedIndex == index;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 12.0),
-                        child: Focus(
-                          onFocusChange: (hasFocus) {
-                            if (hasFocus) {
-                              setState(() {
-                                _focusedIndex = index;
-                              });
-                            }
-                          },
-                          onKeyEvent: (node, event) {
-                            if (event is KeyDownEvent) {
-                              if (event.logicalKey == LogicalKeyboardKey.select ||
-                                  event.logicalKey == LogicalKeyboardKey.enter ||
-                                  event.physicalKey == PhysicalKeyboardKey.select ||
-                                  event.physicalKey == PhysicalKeyboardKey.enter) {
-                                _playEpisode(index);
-                                return KeyEventResult.handled;
-                              }
-                            }
-                            return KeyEventResult.ignored;
-                          },
-                          child: FilledButton.tonal(
-                            style: FilledButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              backgroundColor: isFocused
-                                  ? colorScheme.primaryContainer
-                                  : colorScheme.surfaceVariant,
-                              foregroundColor: isFocused
-                                  ? colorScheme.onPrimaryContainer
-                                  : colorScheme.onSurfaceVariant,
-                              elevation: isFocused ? 4 : 0,
-                              side: BorderSide(
-                                color: isFocused
-                                    ? colorScheme.primary
-                                    : Colors.transparent,
-                                width: isFocused ? 2 : 0,
-                              ),
-                            ),
-                            onPressed: () => _playEpisode(index),
-                            child: Text(
-                              _episodes[index]['title']!,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodyLarge!
-                                  .copyWith(
-                                fontWeight: isFocused
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                fontSize: isFocused ? 18 : 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+          // Episodes section fixed at bottom
+          if (_episodes.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Text(
+                      '选集',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 56,
+                    child: Focus(
+                      focusNode: _episodesFocusNode,
+                      autofocus: true,
+                      child: ListView.builder(
+                        controller: _episodesScrollController,
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: _episodes.length,
+                        itemBuilder: (context, index) {
+                          final isFocused = _focusedIndex == index;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 12.0),
+                            child: Focus(
+                              onFocusChange: (hasFocus) {
+                                if (hasFocus) {
+                                  setState(() {
+                                    _focusedIndex = index;
+                                  });
+                                }
+                              },
+                              onKeyEvent: (node, event) {
+                                if (event is KeyDownEvent) {
+                                  if (event.logicalKey == LogicalKeyboardKey.select ||
+                                      event.logicalKey == LogicalKeyboardKey.enter ||
+                                      event.physicalKey == PhysicalKeyboardKey.select ||
+                                      event.physicalKey == PhysicalKeyboardKey.enter) {
+                                    _playEpisode(index);
+                                    return KeyEventResult.handled;
+                                  }
+                                }
+                                return KeyEventResult.ignored;
+                              },
+                              child: FilledButton.tonal(
+                                style: FilledButton.styleFrom(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  backgroundColor: isFocused
+                                      ? colorScheme.primaryContainer
+                                      : colorScheme.surfaceVariant,
+                                  foregroundColor: isFocused
+                                      ? colorScheme.onPrimaryContainer
+                                      : colorScheme.onSurfaceVariant,
+                                  elevation: isFocused ? 4 : 0,
+                                  side: BorderSide(
+                                    color: isFocused
+                                        ? colorScheme.primary
+                                        : Colors.transparent,
+                                    width: isFocused ? 2 : 0,
+                                  ),
+                                ),
+                                onPressed: () => _playEpisode(index),
+                                child: Text(
+                                  _episodes[index]['title']!,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyLarge!
+                                      .copyWith(
+                                    fontWeight: isFocused
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    fontSize: isFocused ? 18 : 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
-            ],
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
