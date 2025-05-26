@@ -533,11 +533,14 @@ class _SearchPageState extends State<SearchPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _darkBackground,
-      body: Column(
-        children: [
-          _buildSearchField(),
-          _buildContent(),
-        ],
+      body: FocusScope(
+        autofocus: true,
+        child: Column(
+          children: [
+            _buildSearchField(),
+            _buildContent(),
+          ],
+        ),
       ),
     );
   }
