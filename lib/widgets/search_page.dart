@@ -106,60 +106,52 @@ class _SearchPageState extends State<SearchPage> {
         elevation: 8,
         borderRadius: BorderRadius.circular(32),
         color: _cardBackground,
-        child: Focus(
-          focusNode: _searchFocusNode,
-          autofocus: true,
-          onKeyEvent: (node, event) {
-            if (event is KeyDownEvent &&
-                event.logicalKey == LogicalKeyboardKey.enter) {
-              _searchMovies(_searchController.text.trim());
-              return KeyEventResult.handled;
-            }
-            return KeyEventResult.ignored;
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(32),
-              border: _searchFocusNode.hasFocus
-                  ? Border.all(color: _primaryColor, width: 3)
-                  : null,
-              boxShadow: _searchFocusNode.hasFocus
-                  ? [
-                BoxShadow(
-                  color: _primaryColor.withOpacity(0.3),
-                  blurRadius: 12,
-                  spreadRadius: 2,
-                )
-              ]
-                  : null,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 24),
-                    child: TextField(
-                      controller: _searchController,
-                      style: TextStyle(
-                        fontSize: 24,
-                        color: _textColor,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: '搜索电影、电视剧...',
-                        hintStyle: TextStyle(
-                          fontSize: 22,
-                          color: _hintColor,
-                        ),
-                        border: InputBorder.none,
-                      ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(32),
+            border: _searchFocusNode.hasFocus
+                ? Border.all(color: _primaryColor, width: 3)
+                : null,
+            boxShadow: _searchFocusNode.hasFocus
+                ? [
+              BoxShadow(
+                color: _primaryColor.withOpacity(0.3),
+                blurRadius: 12,
+                spreadRadius: 2,
+              )
+            ]
+                : null,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 24),
+                  child: TextField(
+                    focusNode: _searchFocusNode,  // 关键：给TextField传递FocusNode
+                    controller: _searchController,
+                    style: TextStyle(
+                      fontSize: 24,
+                      color: _textColor,
+                      fontWeight: FontWeight.w500,
                     ),
+                    decoration: InputDecoration(
+                      hintText: '搜索电影、电视剧...',
+                      hintStyle: TextStyle(
+                        fontSize: 22,
+                        color: _hintColor,
+                      ),
+                      border: InputBorder.none,
+                    ),
+                    onSubmitted: (value) {
+                      _searchMovies(value.trim());
+                    },
                   ),
                 ),
-                _buildSearchButton(),
-              ],
-            ),
+              ),
+              _buildSearchButton(),
+            ],
           ),
         ),
       ),
