@@ -3,6 +3,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'movie_detail_page.dart';
+
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
 
@@ -331,10 +333,10 @@ class _SearchPageState extends State<SearchPage> {
             child: GridView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 8),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 5, // 电视适合更宽的网格
-                childAspectRatio: 0.65,
-                crossAxisSpacing: 24,
-                mainAxisSpacing: 24,
+                crossAxisCount: 4, // 4 items per row
+                childAspectRatio: 0.7, // Adjusted aspect ratio
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
               ),
               itemCount: _movies.length,
               itemBuilder: (context, index) {
@@ -362,137 +364,161 @@ class _SearchPageState extends State<SearchPage> {
       child: Builder(
         builder: (context) {
           final hasFocus = Focus.of(context).hasFocus;
-          return AnimatedScale(
-            scale: hasFocus ? 1.05 : 1.0,
-            duration: const Duration(milliseconds: 150),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: hasFocus
-                    ? [
-                  BoxShadow(
-                    color: _primaryColor.withOpacity(0.4),
-                    blurRadius: 16,
-                    spreadRadius: 4,
-                  )
-                ]
-                    : [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.4),
-                    blurRadius: 8,
-                    spreadRadius: 2,
-                  )
-                ],
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            margin: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: hasFocus
+                  ? [
+                BoxShadow(
+                  color: _primaryColor.withOpacity(0.4),
+                  blurRadius: 16,
+                  spreadRadius: 4,
+                )
+              ]
+                  : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.4),
+                  blurRadius: 8,
+                  spreadRadius: 2,
+                )
+              ],
+            ),
+            child: Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: hasFocus
+                    ? BorderSide(color: _primaryColor, width: 3)
+                    : BorderSide.none,
               ),
-              child: Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: hasFocus
-                      ? BorderSide(color: _primaryColor, width: 3)
-                      : BorderSide.none,
-                ),
-                elevation: hasFocus ? 8 : 4,
-                color: _cardBackground,
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
-                  onTap: () => _navigateToDetail(movie),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child: Stack(
-                          children: [
-                            CachedNetworkImage(
-                              imageUrl: movie['vod_pic'] ?? '',
-                              fit: BoxFit.cover,
-                              placeholder: (_, __) => Container(
-                                color: _darkBackground,
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor:
-                                    AlwaysStoppedAnimation(_primaryColor),
+              elevation: hasFocus ? 8 : 4,
+              color: _cardBackground,
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => _navigateToDetail(movie),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Poster image (adaptive width)
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(12),
+                          ),
+                          color: _darkBackground,
+                        ),
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(12),
+                          ),
+                          child: CachedNetworkImage(
+                            imageUrl: movie['vod_pic'] ?? '',
+                            fit: BoxFit.cover,
+                            placeholder: (_, __) => Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                AlwaysStoppedAnimation(_primaryColor),
+                              ),
+                            ),
+                            errorWidget: (_, __, ___) => Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                size: 48,
+                                color: _hintColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Movie details
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Title
+                          Text(
+                            movie['vod_name'] ?? '未知标题',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: _textColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 8),
+
+                          // Year, Type, and Source in one line
+                          Row(
+                            children: [
+                              // Year
+                              if (movie['vod_year']?.toString().isNotEmpty ?? false)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: _primaryColor.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    movie['vod_year'].toString(),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: _primaryColor,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              errorWidget: (_, __, ___) => Container(
-                                color: _darkBackground,
-                                child: Center(
-                                  child: Icon(
-                                    Icons.broken_image,
-                                    size: 48,
+
+                              // Type
+                              if (movie['type_name']?.toString().isNotEmpty ?? false) ...[
+                                const SizedBox(width: 6),
+                                Text(
+                                  movie['type_name'],
+                                  style: TextStyle(
+                                    fontSize: 12,
                                     color: _hintColor,
                                   ),
                                 ),
-                              ),
-                            ),
-                            if (hasFocus)
-                              Positioned(
-                                bottom: 0,
-                                left: 0,
-                                right: 0,
-                                child: Container(
-                                  height: 6,
-                                  color: _primaryColor,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              movie['vod_name'] ?? '未知标题',
-                              style: TextStyle(
-                                fontSize: 20,
-                                color: _textColor,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                if (movie['vod_year']?.toString().isNotEmpty ?? false)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: _primaryColor.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      movie['vod_year'].toString(),
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: _primaryColor,
-                                      ),
-                                    ),
-                                  ),
-                                if (movie['type_name']?.toString().isNotEmpty ??
-                                    false) ...[
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    movie['type_name'],
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      color: _hintColor,
-                                    ),
-                                  ),
-                                ],
                               ],
-                            ),
-                          ],
+
+                              // Source (vod_play_from)
+                              if (movie['vod_play_from']?.toString().isNotEmpty ?? false) ...[
+                                const SizedBox(width: 6),
+                                Text(
+                                  '| ${movie['vod_play_from']}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: _hintColor,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Focus indicator
+                    if (hasFocus)
+                      Container(
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: _primaryColor,
+                          borderRadius: const BorderRadius.vertical(
+                            bottom: Radius.circular(12),
+                          ),
                         ),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -506,15 +532,7 @@ class _SearchPageState extends State<SearchPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          backgroundColor: _darkBackground,
-          body: Center(
-            child: Text(
-              '详情页: ${movie['vod_name']}',
-              style: TextStyle(fontSize: 32, color: _textColor),
-            ),
-          ),
-        ),
+        builder: (context) => MovieDetailPage(movie: movie),
       ),
     );
   }
