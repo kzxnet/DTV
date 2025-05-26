@@ -16,6 +16,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   List<Map<String, String>> _episodes = [];
   final FocusNode _episodesFocusNode = FocusNode();
   final ScrollController _episodesScrollController = ScrollController();
+  int _focusedIndex = 0; // Track focused episode index
 
   @override
   void initState() {
@@ -23,7 +24,17 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
     _parseEpisodes();
     _episodesFocusNode.addListener(() {
       if (_episodesFocusNode.hasFocus) {
-        // Handle episodes list focus
+        setState(() {
+          _focusedIndex = 0; // Default focus to first episode
+        });
+        // Auto-scroll to show first episode if needed
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _episodesScrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        });
       }
     });
   }
@@ -68,19 +79,14 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isDark = colorScheme.brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.movie['vod_name'] ?? '未知标题',
-          style: Theme.of(context).textTheme.displaySmall,
-        ),
-      ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Movie header
+            // Movie header (unchanged)
             Container(
               height: 240,
               decoration: BoxDecoration(
@@ -171,7 +177,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
               ),
             ),
 
-            // Description
+            // Description (unchanged)
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -192,7 +198,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
               ),
             ),
 
-            // Episodes
+            // Episodes with enhanced focus handling
             if (_episodes.isNotEmpty) ...[
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -203,18 +209,27 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
               ),
               const SizedBox(height: 12),
               SizedBox(
-                height: 48,
+                height: 56, // Increased height for better focus visibility
                 child: Focus(
                   focusNode: _episodesFocusNode,
+                  autofocus: true, // Auto-focus the episodes list
                   child: ListView.builder(
                     controller: _episodesScrollController,
                     scrollDirection: Axis.horizontal,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     itemCount: _episodes.length,
                     itemBuilder: (context, index) {
+                      final isFocused = _focusedIndex == index;
                       return Padding(
                         padding: const EdgeInsets.only(right: 12.0),
                         child: Focus(
+                          onFocusChange: (hasFocus) {
+                            if (hasFocus) {
+                              setState(() {
+                                _focusedIndex = index;
+                              });
+                            }
+                          },
                           onKeyEvent: (node, event) {
                             if (event is KeyDownEvent) {
                               if (event.logicalKey ==
@@ -234,6 +249,22 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                                 horizontal: 16,
                                 vertical: 8,
                               ),
+                              // Enhanced focus visuals
+                              backgroundColor: isFocused
+                                  ? colorScheme.primaryContainer
+                                  : colorScheme.surfaceVariant,
+                              foregroundColor: isFocused
+                                  ? colorScheme.onPrimaryContainer
+                                  : colorScheme.onSurfaceVariant,
+                              // Add elevation for better focus indication
+                              elevation: isFocused ? 4 : 0,
+                              // Add border for better focus indication
+                              side: BorderSide(
+                                color: isFocused
+                                    ? colorScheme.primary
+                                    : Colors.transparent,
+                                width: isFocused ? 2 : 0,
+                              ),
                             ),
                             onPressed: () => _playEpisode(index),
                             child: Text(
@@ -242,7 +273,10 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                                   .textTheme
                                   .bodyLarge!
                                   .copyWith(
-                                color: colorScheme.onSurface,
+                                fontWeight: isFocused
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                fontSize: isFocused ? 18 : 16,
                               ),
                             ),
                           ),
