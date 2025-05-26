@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -34,11 +32,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   final FocusNode _episodeMenuFocusNode = FocusNode();
   final ScrollController _episodeMenuScrollController = ScrollController();
 
-  // For seek feedback
-  bool _showSeekAnimation = false;
-  String _seekDirection = '';
-  Timer? _seekFeedbackTimer;
-
   _FullScreenPlayerPageState() : _currentEpisodeIndex = 0;
 
   @override
@@ -47,52 +40,26 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     _currentEpisodeIndex = widget.initialIndex;
     _initializePlayer(widget.episodes[_currentEpisodeIndex]['url']!);
 
-    _playerFocusNode.addListener(_handlePlayerFocusChange);
-    _episodeMenuFocusNode.addListener(_handleEpisodeMenuFocusChange);
-  }
-
-  void _handlePlayerFocusChange() {
-    if (_playerFocusNode.hasFocus) {
-      setState(() {
-        _showControls = true;
-      });
-      _hideControlsAfterDelay();
-    }
-  }
-
-  void _handleEpisodeMenuFocusChange() {
-    if (_episodeMenuFocusNode.hasFocus) {
-      setState(() {
-        _showControls = true;
-        _showEpisodeMenu = true;
-      });
-    }
-  }
-
-  void _hideControlsAfterDelay() {
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted && !_showEpisodeMenu) {
+    _playerFocusNode.addListener(() {
+      if (_playerFocusNode.hasFocus) {
         setState(() {
-          _showControls = false;
+          _showControls = true;
+        });
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted && !_showEpisodeMenu) {
+            setState(() {
+              _showControls = false;
+            });
+          }
         });
       }
     });
-  }
 
-  void _showSeekFeedback(String direction) {
-    setState(() {
-      _showSeekAnimation = true;
-      _seekDirection = direction;
-    });
-
-    // Cancel any existing timer
-    _seekFeedbackTimer?.cancel();
-
-    // Hide after 1 second
-    _seekFeedbackTimer = Timer(const Duration(seconds: 1), () {
-      if (mounted) {
+    _episodeMenuFocusNode.addListener(() {
+      if (_episodeMenuFocusNode.hasFocus) {
         setState(() {
-          _showSeekAnimation = false;
+          _showControls = true;
+          _showEpisodeMenu = true;
         });
       }
     });
@@ -120,15 +87,13 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
 
   @override
   void dispose() {
-    _seekFeedbackTimer?.cancel();
     WakelockPlus.disable().catchError((e) => debugPrint(e.toString()));
     _controller.dispose();
     _chewieController?.dispose();
-    _playerFocusNode.removeListener(_handlePlayerFocusChange);
     _playerFocusNode.dispose();
-    _episodeMenuFocusNode.removeListener(_handleEpisodeMenuFocusChange);
     _episodeMenuFocusNode.dispose();
     _episodeMenuScrollController.dispose();
+    _controller.removeListener(() {});
     super.dispose();
   }
 
@@ -202,8 +167,8 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     }
 
     try {
-      await _controller.pause();
-      await _controller.dispose();
+      await _controller?.pause();
+      await _controller?.dispose();
       _chewieController?.dispose();
     } catch (e) {
       debugPrint('释放旧控制器错误: $e');
@@ -225,13 +190,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         videoPlayerController: _controller,
         autoPlay: true,
         looping: false,
-        showControls: false,
-        materialProgressColors: ChewieProgressColors(
-          playedColor: const Color(0xFF0066FF),
-          handleColor: const Color(0xFF0066FF),
-          backgroundColor: Colors.grey,
-          bufferedColor: Colors.grey[300]!,
-        ),
       );
 
       if (mounted) {
@@ -253,17 +211,14 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   }
 
   void _togglePlayPause() {
-    setState(() {
-      if (_controller.value.isPlaying) {
-        _controller.pause();
-      } else {
-        _controller.play();
-      }
-    });
+    if (_controller.value.isPlaying) {
+      _controller.pause();
+    } else {
+      _controller.play();
+    }
   }
 
   void _seekForward() {
-    _showSeekFeedback('+10s');
     final newPosition = _controller.value.position + const Duration(seconds: 10);
     _controller.seekTo(newPosition > _controller.value.duration
         ? _controller.value.duration
@@ -271,7 +226,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   }
 
   void _seekBackward() {
-    _showSeekFeedback('-10s');
     final newPosition = _controller.value.position - const Duration(seconds: 10);
     _controller.seekTo(newPosition < Duration.zero ? Duration.zero : newPosition);
   }
@@ -289,14 +243,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       _showEpisodeMenu = !_showEpisodeMenu;
       if (_showEpisodeMenu) {
         _episodeMenuFocusNode.requestFocus();
-        // Auto-scroll to current episode
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _episodeMenuScrollController.animateTo(
-            _currentEpisodeIndex * 56.0,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        });
       } else {
         _playerFocusNode.requestFocus();
       }
@@ -305,12 +251,13 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Shortcuts(
         shortcuts: {
           const SingleActivator(LogicalKeyboardKey.select): const ActivateIntent(),
-          const SingleActivator(LogicalKeyboardKey.enter): const ActivateIntent(),
           const SingleActivator(LogicalKeyboardKey.arrowUp): const UpIntent(),
           const SingleActivator(LogicalKeyboardKey.arrowDown): const DownIntent(),
           const SingleActivator(LogicalKeyboardKey.arrowLeft): const LeftIntent(),
@@ -333,20 +280,41 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                 return null;
               },
             ),
-            MenuIntent: CallbackAction<MenuIntent>(
-              onInvoke: (intent) {
-                _toggleEpisodeMenu();
-                return null;
-              },
-            ),
           },
-          child: Focus(
-            autofocus: true,
-            focusNode: _playerFocusNode,
-            child: Stack(
-              children: [
-                // Video player area
-                Center(
+          child: Stack(
+            children: [
+              // Video player area
+              Focus(
+                autofocus: true,
+                focusNode: _playerFocusNode,
+                onKeyEvent: (node, event) {
+                  if (event is KeyDownEvent) {
+                    if (event.logicalKey == LogicalKeyboardKey.select) {
+                      _togglePlayPause();
+                      return KeyEventResult.handled;
+                    } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+                      _seekForward();
+                      return KeyEventResult.handled;
+                    } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+                      _seekBackward();
+                      return KeyEventResult.handled;
+                    } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                      _increaseVolume();
+                      return KeyEventResult.handled;
+                    } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                      _decreaseVolume();
+                      return KeyEventResult.handled;
+                    } else if (event.logicalKey == LogicalKeyboardKey.contextMenu) {
+                      _toggleEpisodeMenu();
+                      return KeyEventResult.handled;
+                    } else if (event.logicalKey == LogicalKeyboardKey.escape) {
+                      Navigator.pop(context);
+                      return KeyEventResult.handled;
+                    }
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: Center(
                   child: _isLoading
                       ? const CircularProgressIndicator(strokeWidth: 3)
                       : _errorMessage != null
@@ -356,321 +324,271 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                   )
                       : Chewie(controller: _chewieController!),
                 ),
+              ),
 
-                // Seek feedback overlay
-                if (_showSeekAnimation)
-                  Center(
-                    child: AnimatedOpacity(
-                      opacity: _showSeekAnimation ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 300),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          _seekDirection,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                // Top gradient overlay
-                if (_showControls)
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: 100,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withOpacity(0.7),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                      child: SafeArea(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Text(
-                            widget.episodes[_currentEpisodeIndex]['title'] ?? '当前剧集',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                // Bottom controls overlay
-                if (_showControls && !_showEpisodeMenu)
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      height: 120,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.topCenter,
-                          colors: [
-                            Colors.black.withOpacity(0.8),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          // Progress bar
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                            child: VideoProgressIndicator(
-                              _controller,
-                              allowScrubbing: true,
-                              colors: VideoProgressColors(
-                                playedColor: const Color(0xFF0066FF),
-                                bufferedColor: Colors.grey,
-                                backgroundColor: Colors.grey[600]!,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          // Control buttons
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                // Left side controls
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: Icon(
-                                        _controller.value.isPlaying
-                                            ? Icons.pause
-                                            : Icons.play_arrow,
-                                        color: Colors.white,
-                                        size: 28,
-                                      ),
-                                      onPressed: _togglePlayPause,
-                                    ),
-                                    const SizedBox(width: 16),
-                                    IconButton(
-                                      icon: const Icon(Icons.skip_previous,
-                                          color: Colors.white, size: 24),
-                                      onPressed: _currentEpisodeIndex > 0
-                                          ? () => _changeEpisode(_currentEpisodeIndex - 1)
-                                          : null,
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.skip_next,
-                                          color: Colors.white, size: 24),
-                                      onPressed:
-                                      _currentEpisodeIndex < widget.episodes.length - 1
-                                          ? () => _changeEpisode(_currentEpisodeIndex + 1)
-                                          : null,
-                                    ),
-                                  ],
-                                ),
-                                // Right side controls
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.volume_up,
-                                          color: Colors.white, size: 24),
-                                      onPressed: () {},
-                                    ),
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      icon: const Icon(Icons.list,
-                                          color: Colors.white, size: 24),
-                                      onPressed: _toggleEpisodeMenu,
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
+              // Top gradient overlay
+              if (_showControls)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 100,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withOpacity(0.7),
+                          Colors.transparent,
                         ],
                       ),
                     ),
                   ),
+                ),
 
-                // Right-side episode menu
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                  right: _showEpisodeMenu ? 0 : -320,
-                  top: 0,
+              // Bottom controls overlay
+              if (_showControls && !_showEpisodeMenu)
+                Positioned(
+                  left: 0,
+                  right: 0,
                   bottom: 0,
                   child: Container(
-                    width: 320,
+                    height: 120,
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.85),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.5),
-                          blurRadius: 16,
-                          offset: const Offset(-8, 0),
-                        ),
-                      ],
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          Colors.black.withOpacity(0.8),
+                          Colors.transparent,
+                        ],
+                      ),
                     ),
-                    child: FocusScope(
-                      node: FocusScopeNode(),
-                      child: Focus(
-                        focusNode: _episodeMenuFocusNode,
-                        onKeyEvent: (node, event) {
-                          if (event is KeyDownEvent) {
-                            if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-                              if (_currentEpisodeIndex > 0) {
-                                setState(() {
-                                  _currentEpisodeIndex--;
-                                });
-                                _episodeMenuScrollController.animateTo(
-                                  (_currentEpisodeIndex * 56.0).clamp(
-                                    0.0,
-                                    _episodeMenuScrollController
-                                        .position.maxScrollExtent,
-                                  ),
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeOut,
-                                );
-                              }
-                              return KeyEventResult.handled;
-                            } else if (event.logicalKey ==
-                                LogicalKeyboardKey.arrowDown) {
-                              if (_currentEpisodeIndex <
-                                  widget.episodes.length - 1) {
-                                setState(() {
-                                  _currentEpisodeIndex++;
-                                });
-                                _episodeMenuScrollController.animateTo(
-                                  (_currentEpisodeIndex * 56.0).clamp(
-                                    0.0,
-                                    _episodeMenuScrollController
-                                        .position.maxScrollExtent,
-                                  ),
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeOut,
-                                );
-                              }
-                              return KeyEventResult.handled;
-                            } else if (event.logicalKey ==
-                                LogicalKeyboardKey.select ||
-                                event.logicalKey == LogicalKeyboardKey.enter) {
-                              _changeEpisode(_currentEpisodeIndex);
-                              return KeyEventResult.handled;
-                            } else if (event.logicalKey ==
-                                LogicalKeyboardKey.contextMenu ||
-                                event.logicalKey == LogicalKeyboardKey.escape) {
-                              _toggleEpisodeMenu();
-                              return KeyEventResult.handled;
-                            }
-                          }
-                          return KeyEventResult.ignored;
-                        },
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Row(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        // Progress bar
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: VideoProgressIndicator(
+                            _controller,
+                            allowScrubbing: true,
+                            colors: VideoProgressColors(
+                              playedColor: const Color(0xFF0066FF),
+                              bufferedColor: Colors.grey,
+                              backgroundColor: Colors.grey[600]!,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        // Control buttons
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              // Left side controls
+                              Row(
                                 children: [
                                   IconButton(
-                                    icon:
-                                    const Icon(Icons.close, color: Colors.white),
-                                    onPressed: _toggleEpisodeMenu,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '选集',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .headlineMedium!
-                                        .copyWith(color: Colors.white),
-                                  ),
-                                  const Spacer(),
-                                  Text(
-                                    '${_currentEpisodeIndex + 1}/${widget.episodes.length}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyLarge!
-                                        .copyWith(
-                                      color: Colors.white.withOpacity(0.7),
+                                    icon: Icon(
+                                      _controller.value.isPlaying
+                                          ? Icons.pause
+                                          : Icons.play_arrow,
+                                      color: Colors.white,
+                                      size: 28,
                                     ),
+                                    onPressed: _togglePlayPause,
+                                  ),
+                                  const SizedBox(width: 16),
+                                  IconButton(
+                                    icon: const Icon(Icons.skip_previous,
+                                        color: Colors.white, size: 24),
+                                    onPressed: _currentEpisodeIndex > 0
+                                        ? () => _changeEpisode(_currentEpisodeIndex - 1)
+                                        : null,
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.skip_next,
+                                        color: Colors.white, size: 24),
+                                    onPressed: _currentEpisodeIndex < widget.episodes.length - 1
+                                        ? () => _changeEpisode(_currentEpisodeIndex + 1)
+                                        : null,
                                   ),
                                 ],
                               ),
-                            ),
-                            Expanded(
-                              child: ListView.builder(
-                                controller: _episodeMenuScrollController,
-                                padding: const EdgeInsets.only(bottom: 16),
-                                itemCount: widget.episodes.length,
-                                itemBuilder: (context, index) {
-                                  final isSelected = index == _currentEpisodeIndex;
-                                  return Material(
-                                    color: isSelected
+                              // Right side controls
+                              Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.volume_up,
+                                        color: Colors.white, size: 24),
+                                    onPressed: () {},
+                                  ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    icon: const Icon(Icons.list,
+                                        color: Colors.white, size: 24),
+                                    onPressed: _toggleEpisodeMenu,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Right-side episode menu
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                right: _showEpisodeMenu ? 0 : -320,
+                top: 0,
+                bottom: 0,
+                child: Container(
+                  width: 320,
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.85),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.5),
+                        blurRadius: 16,
+                        offset: const Offset(-8, 0),
+                      ),
+                    ],
+                  ),
+                  child: Focus(
+                    focusNode: _episodeMenuFocusNode,
+                    onKeyEvent: (node, event) {
+                      if (event is KeyDownEvent) {
+                        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                          if (_currentEpisodeIndex > 0) {
+                            setState(() {
+                              _currentEpisodeIndex--;
+                            });
+                            _episodeMenuScrollController.animateTo(
+                              (_currentEpisodeIndex * 56.0).clamp(
+                                0.0,
+                                _episodeMenuScrollController.position.maxScrollExtent,
+                              ),
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOut,
+                            );
+                          }
+                          return KeyEventResult.handled;
+                        } else if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                          if (_currentEpisodeIndex < widget.episodes.length - 1) {
+                            setState(() {
+                              _currentEpisodeIndex++;
+                            });
+                            _episodeMenuScrollController.animateTo(
+                              (_currentEpisodeIndex * 56.0).clamp(
+                                0.0,
+                                _episodeMenuScrollController.position.maxScrollExtent,
+                              ),
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeOut,
+                            );
+                          }
+                          return KeyEventResult.handled;
+                        } else if (event.logicalKey == LogicalKeyboardKey.contextMenu ||
+                            event.logicalKey == LogicalKeyboardKey.escape) {
+                          _toggleEpisodeMenu();
+                          return KeyEventResult.handled;
+                        }
+                      }
+                      return KeyEventResult.ignored;
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.close, color: Colors.white),
+                                onPressed: _toggleEpisodeMenu,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '选集',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium!
+                                    .copyWith(color: Colors.white),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${_currentEpisodeIndex + 1}/${widget.episodes.length}',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge!
+                                    .copyWith(
+                                  color: Colors.white.withOpacity(0.7),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: ListView.builder(
+                            controller: _episodeMenuScrollController,
+                            padding: const EdgeInsets.only(bottom: 16),
+                            itemCount: widget.episodes.length,
+                            itemBuilder: (context, index) {
+                              return Focus(
+                                autofocus: index == _currentEpisodeIndex,
+                                onKeyEvent: (node, event) {
+                                  if (event is KeyDownEvent) {
+                                    if (event.logicalKey == LogicalKeyboardKey.select ||
+                                        event.logicalKey == LogicalKeyboardKey.enter ||
+                                        event.physicalKey == PhysicalKeyboardKey.select ||
+                                        event.physicalKey == PhysicalKeyboardKey.enter) {
+                                      _changeEpisode(index);
+                                      return KeyEventResult.handled;
+                                    }
+                                  }
+                                  return KeyEventResult.ignored;
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 8,
+                                  ),
+                                  child: Material(
+                                    color: _currentEpisodeIndex == index
                                         ? const Color(0xFF0066FF).withOpacity(0.2)
                                         : Colors.transparent,
                                     borderRadius: BorderRadius.circular(8),
                                     child: InkWell(
                                       borderRadius: BorderRadius.circular(8),
                                       onTap: () => _changeEpisode(index),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 12,
-                                        ),
-                                        margin: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          border: isSelected
-                                              ? Border.all(
-                                            color: const Color(0xFF0066FF),
-                                            width: 2,
-                                          )
-                                              : null,
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12.0),
                                         child: Row(
                                           children: [
-                                            if (isSelected)
+                                            if (_currentEpisodeIndex == index)
                                               const Icon(
                                                 Icons.play_arrow,
                                                 color: Color(0xFF0066FF),
                                                 size: 20,
                                               ),
-                                            if (isSelected)
+                                            if (_currentEpisodeIndex == index)
                                               const SizedBox(width: 8),
                                             Expanded(
                                               child: Text(
                                                 widget.episodes[index]['title']!,
                                                 style: TextStyle(
-                                                  color: isSelected
+                                                  color: _currentEpisodeIndex == index
                                                       ? const Color(0xFF0066FF)
                                                       : Colors.white,
-                                                  fontWeight: isSelected
+                                                  fontWeight: _currentEpisodeIndex == index
                                                       ? FontWeight.bold
                                                       : FontWeight.normal,
                                                 ),
@@ -680,18 +598,18 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                                         ),
                                       ),
                                     ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
