@@ -209,10 +209,10 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
               ),
               const SizedBox(height: 12),
               SizedBox(
-                height: 56, // Increased height for better focus visibility
+                height: 56,
                 child: Focus(
                   focusNode: _episodesFocusNode,
-                  autofocus: true, // Auto-focus the episodes list
+                  autofocus: true,
                   child: ListView.builder(
                     controller: _episodesScrollController,
                     scrollDirection: Axis.horizontal,
@@ -232,8 +232,10 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                           },
                           onKeyEvent: (node, event) {
                             if (event is KeyDownEvent) {
-                              if (event.logicalKey ==
-                                  LogicalKeyboardKey.select) {
+                              if (event.logicalKey == LogicalKeyboardKey.select ||
+                                  event.logicalKey == LogicalKeyboardKey.enter ||
+                                  event.physicalKey == PhysicalKeyboardKey.select ||
+                                  event.physicalKey == PhysicalKeyboardKey.enter) {
                                 _playEpisode(index);
                                 return KeyEventResult.handled;
                               }
@@ -249,16 +251,13 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                                 horizontal: 16,
                                 vertical: 8,
                               ),
-                              // Enhanced focus visuals
                               backgroundColor: isFocused
                                   ? colorScheme.primaryContainer
                                   : colorScheme.surfaceVariant,
                               foregroundColor: isFocused
                                   ? colorScheme.onPrimaryContainer
                                   : colorScheme.onSurfaceVariant,
-                              // Add elevation for better focus indication
                               elevation: isFocused ? 4 : 0,
-                              // Add border for better focus indication
                               side: BorderSide(
                                 color: isFocused
                                     ? colorScheme.primary
