@@ -4,6 +4,14 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+extension DurationClamp on Duration {
+  Duration clamp(Duration min, Duration max) {
+    if (this < min) return min;
+    if (this > max) return max;
+    return this;
+  }
+}
+
 class FullScreenPlayerPage extends StatefulWidget {
   final dynamic movie;
   final List<Map<String, String>> episodes;
@@ -31,6 +39,8 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   final FocusNode _playerFocusNode = FocusNode();
   final FocusNode _episodeMenuFocusNode = FocusNode();
   final ScrollController _episodeMenuScrollController = ScrollController();
+  DateTime? _lastKeyEventTime;
+  bool _isFastSeeking = false;
 
   _FullScreenPlayerPageState() : _currentEpisodeIndex = 0;
 
@@ -45,13 +55,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         setState(() {
           _showControls = true;
         });
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted && !_showEpisodeMenu) {
-            setState(() {
-              _showControls = false;
-            });
-          }
-        });
+        _startControlsAutoHideTimer();
       }
     });
 
@@ -60,6 +64,16 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         setState(() {
           _showControls = true;
           _showEpisodeMenu = true;
+        });
+      }
+    });
+  }
+
+  void _startControlsAutoHideTimer() {
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted && !_showEpisodeMenu && _playerFocusNode.hasFocus) {
+        setState(() {
+          _showControls = false;
         });
       }
     });
@@ -211,6 +225,11 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   }
 
   void _togglePlayPause() {
+    setState(() {
+      _showControls = true;
+    });
+    _startControlsAutoHideTimer();
+
     if (_controller.value.isPlaying) {
       _controller.pause();
     } else {
@@ -219,27 +238,54 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   }
 
   void _seekForward() {
-    final newPosition = _controller.value.position + const Duration(seconds: 10);
-    _controller.seekTo(newPosition > _controller.value.duration
-        ? _controller.value.duration
-        : newPosition);
+    _handleSeek(const Duration(seconds: 10));
   }
 
   void _seekBackward() {
-    final newPosition = _controller.value.position - const Duration(seconds: 10);
-    _controller.seekTo(newPosition < Duration.zero ? Duration.zero : newPosition);
+    _handleSeek(const Duration(seconds: -10));
+  }
+
+  void _handleSeek(Duration duration) {
+    setState(() {
+      _showControls = true;
+      _isFastSeeking = true;
+    });
+    _startControlsAutoHideTimer();
+
+    final newPosition = _controller.value.position + duration;
+    _controller.seekTo(newPosition.clamp(
+      Duration.zero,
+      _controller.value.duration,
+    ));
+
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        setState(() {
+          _isFastSeeking = false;
+        });
+      }
+    });
   }
 
   void _increaseVolume() {
-    _controller.setVolume(_controller.value.volume + 0.1);
+    setState(() {
+      _showControls = true;
+    });
+    _startControlsAutoHideTimer();
+    _controller.setVolume((_controller.value.volume + 0.1).clamp(0.0, 1.0));
   }
 
   void _decreaseVolume() {
-    _controller.setVolume(_controller.value.volume - 0.1);
+    setState(() {
+      _showControls = true;
+    });
+    _startControlsAutoHideTimer();
+    _controller.setVolume((_controller.value.volume - 0.1).clamp(0.0, 1.0));
   }
 
   void _toggleEpisodeMenu() {
     setState(() {
+      _showControls = true;
       _showEpisodeMenu = !_showEpisodeMenu;
       if (_showEpisodeMenu) {
         _episodeMenuFocusNode.requestFocus();
@@ -247,6 +293,24 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         _playerFocusNode.requestFocus();
       }
     });
+    _startControlsAutoHideTimer();
+  }
+
+  void _handleKeyRepeat(KeyEvent event) {
+    final now = DateTime.now();
+    if (_lastKeyEventTime != null &&
+        now.difference(_lastKeyEventTime!) < const Duration(milliseconds: 200)) {
+      return;
+    }
+    _lastKeyEventTime = now;
+
+    if (event is KeyDownEvent) {
+      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        _seekForward();
+      } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+        _seekBackward();
+      }
+    }
   }
 
   @override
@@ -258,12 +322,14 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       body: Shortcuts(
         shortcuts: {
           const SingleActivator(LogicalKeyboardKey.select): const ActivateIntent(),
+          const SingleActivator(LogicalKeyboardKey.enter): const ActivateIntent(),
           const SingleActivator(LogicalKeyboardKey.arrowUp): const UpIntent(),
           const SingleActivator(LogicalKeyboardKey.arrowDown): const DownIntent(),
           const SingleActivator(LogicalKeyboardKey.arrowLeft): const LeftIntent(),
           const SingleActivator(LogicalKeyboardKey.arrowRight): const RightIntent(),
           const SingleActivator(LogicalKeyboardKey.contextMenu): const MenuIntent(),
           const SingleActivator(LogicalKeyboardKey.escape): const BackIntent(),
+          const SingleActivator(LogicalKeyboardKey.mediaPlayPause): const PlayPauseIntent(),
         },
         child: Actions(
           actions: {
@@ -280,6 +346,12 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                 return null;
               },
             ),
+            PlayPauseIntent: CallbackAction<PlayPauseIntent>(
+              onInvoke: (intent) {
+                _togglePlayPause();
+                return null;
+              },
+            ),
           },
           child: Stack(
             children: [
@@ -288,8 +360,14 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                 autofocus: true,
                 focusNode: _playerFocusNode,
                 onKeyEvent: (node, event) {
+                  if (event is KeyRepeatEvent) {
+                    _handleKeyRepeat(event);
+                    return KeyEventResult.handled;
+                  }
+
                   if (event is KeyDownEvent) {
-                    if (event.logicalKey == LogicalKeyboardKey.select) {
+                    if (event.logicalKey == LogicalKeyboardKey.select ||
+                        event.logicalKey == LogicalKeyboardKey.enter) {
                       _togglePlayPause();
                       return KeyEventResult.handled;
                     } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
@@ -309,6 +387,9 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                       return KeyEventResult.handled;
                     } else if (event.logicalKey == LogicalKeyboardKey.escape) {
                       Navigator.pop(context);
+                      return KeyEventResult.handled;
+                    } else if (event.logicalKey == LogicalKeyboardKey.mediaPlayPause) {
+                      _togglePlayPause();
                       return KeyEventResult.handled;
                     }
                   }
@@ -500,6 +581,10 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                             event.logicalKey == LogicalKeyboardKey.escape) {
                           _toggleEpisodeMenu();
                           return KeyEventResult.handled;
+                        } else if (event.logicalKey == LogicalKeyboardKey.select ||
+                            event.logicalKey == LogicalKeyboardKey.enter) {
+                          _changeEpisode(_currentEpisodeIndex);
+                          return KeyEventResult.handled;
                         }
                       }
                       return KeyEventResult.ignored;
@@ -547,9 +632,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                                 onKeyEvent: (node, event) {
                                   if (event is KeyDownEvent) {
                                     if (event.logicalKey == LogicalKeyboardKey.select ||
-                                        event.logicalKey == LogicalKeyboardKey.enter ||
-                                        event.physicalKey == PhysicalKeyboardKey.select ||
-                                        event.physicalKey == PhysicalKeyboardKey.enter) {
+                                        event.logicalKey == LogicalKeyboardKey.enter) {
                                       _changeEpisode(index);
                                       return KeyEventResult.handled;
                                     }
@@ -609,6 +692,34 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                   ),
                 ),
               ),
+
+              // Fast seeking indicator
+              if (_isFastSeeking)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 120,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        _controller.value.position.toString().split('.')[0],
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -640,4 +751,8 @@ class MenuIntent extends Intent {
 
 class BackIntent extends Intent {
   const BackIntent();
+}
+
+class PlayPauseIntent extends Intent {
+  const PlayPauseIntent();
 }
