@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -42,6 +43,9 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   final ScrollController _episodeMenuScrollController = ScrollController();
   DateTime? _lastKeyEventTime;
   bool _isFastSeeking = false;
+  Duration _seekStep = const Duration(seconds: 10);
+  Timer? _seekTimer;
+  bool _isLongPressing = false;
 
   _FullScreenPlayerPageState() : _currentEpisodeIndex = 0;
 
@@ -97,6 +101,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
 
   @override
   void dispose() {
+    _seekTimer?.cancel();
     WakelockPlus.disable().catchError((e) => debugPrint(e.toString()));
     _controller.dispose();
     _chewieController?.dispose();
@@ -116,6 +121,14 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       _controller = VideoPlayerController.network(url);
       await _controller.initialize();
       _setupWakelockListener();
+
+      // 添加播放完成监听
+      _controller.addListener(() {
+        if (_controller.value.position >= _controller.value.duration &&
+            !_controller.value.isLooping) {
+          _playNextEpisode();
+        }
+      });
 
       _chewieController = ChewieController(
         videoPlayerController: _controller,
@@ -190,6 +203,14 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       await _controller.initialize();
       _setupWakelockListener();
 
+      // 重新添加播放完成监听
+      _controller.addListener(() {
+        if (_controller.value.position >= _controller.value.duration &&
+            !_controller.value.isLooping) {
+          _playNextEpisode();
+        }
+      });
+
       _chewieController = ChewieController(
         videoPlayerController: _controller,
         autoPlay: true,
@@ -210,14 +231,47 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     _playerFocusNode.requestFocus();
   }
 
+  void _playNextEpisode() {
+    if (_currentEpisodeIndex < widget.episodes.length - 1) {
+      _changeEpisode(_currentEpisodeIndex + 1);
+    } else {
+      // 如果是最后一集，暂停播放
+      _controller.pause();
+      if (mounted) {
+        setState(() {
+          _showControls = true;
+        });
+      }
+      _startControlsAutoHideTimer();
+    }
+  }
+
   void _togglePlayPause() {
     setState(() => _showControls = true);
     _startControlsAutoHideTimer();
     _controller.value.isPlaying ? _controller.pause() : _controller.play();
   }
 
-  void _seekForward() => _handleSeek(const Duration(seconds: 10));
-  void _seekBackward() => _handleSeek(const Duration(seconds: -10));
+  void _seekForward() => _handleSeek(_seekStep);
+  void _seekBackward() => _handleSeek(-_seekStep);
+
+  void _startSeek(Duration step) {
+    _isLongPressing = true;
+    _seekTimer?.cancel();
+    _seekTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
+      if (_isLongPressing) {
+        _handleSeek(step);
+      } else {
+        timer.cancel();
+      }
+    });
+  }
+
+  void _stopSeek() {
+    _isLongPressing = false;
+    _seekTimer?.cancel();
+    _seekTimer = null;
+  }
 
   void _handleSeek(Duration duration) {
     setState(() {
@@ -353,10 +407,10 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                           _togglePlayPause();
                           return KeyEventResult.handled;
                         case LogicalKeyboardKey.arrowRight:
-                          _seekForward();
+                          _startSeek(_seekStep); // 开始快进
                           return KeyEventResult.handled;
                         case LogicalKeyboardKey.arrowLeft:
-                          _seekBackward();
+                          _startSeek(-_seekStep); // 开始快退
                           return KeyEventResult.handled;
                         case LogicalKeyboardKey.arrowUp:
                           _increaseVolume();
@@ -375,6 +429,13 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                           return KeyEventResult.handled;
                         default:
                           return KeyEventResult.ignored;
+                      }
+                    } else if (event is KeyUpEvent) {
+                      switch (event.logicalKey) {
+                        case LogicalKeyboardKey.arrowRight:
+                        case LogicalKeyboardKey.arrowLeft:
+                          _stopSeek(); // 停止快进/快退
+                          return KeyEventResult.handled;
                       }
                     }
                     return KeyEventResult.ignored;
@@ -419,7 +480,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                     right: 0,
                     bottom: 0,
                     child: Container(
-                      height: 120,
+                      height: 140,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.bottomCenter,
@@ -445,7 +506,12 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 4),
+                          const Text(
+                            '长按左右方向键可快进/快退',
+                            style: TextStyle(color: Colors.white54, fontSize: 12),
+                          ),
+                          const SizedBox(height: 8),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16.0),
                             child: Row(
@@ -664,7 +730,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                   Positioned(
                     left: 0,
                     right: 0,
-                    bottom: 120,
+                    bottom: 140,
                     child: Center(
                       child: Container(
                         padding: const EdgeInsets.symmetric(
