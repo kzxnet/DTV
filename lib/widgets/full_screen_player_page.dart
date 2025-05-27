@@ -362,6 +362,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
           const SingleActivator(LogicalKeyboardKey.arrowDown): const DownIntent(),
           const SingleActivator(LogicalKeyboardKey.arrowLeft): const LeftIntent(),
           const SingleActivator(LogicalKeyboardKey.arrowRight): const RightIntent(),
+          const SingleActivator(LogicalKeyboardKey.contextMenu): const MenuIntent(),
           const SingleActivator(LogicalKeyboardKey.escape): const BackIntent(),
           const SingleActivator(LogicalKeyboardKey.mediaPlayPause): const PlayPauseIntent(),
         },
@@ -568,7 +569,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                 ),
 
               // Right-side episode menu
-              // 在_build方法中找到选集组件部分，修改如下：
               AnimatedPositioned(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeInOut,
@@ -578,130 +578,147 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                 child: Container(
                   width: 320,
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.9),
+                    color: Colors.black.withOpacity(0.85),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.7),
+                        color: Colors.black.withOpacity(0.5),
                         blurRadius: 16,
                         offset: const Offset(-8, 0),
                       ),
                     ],
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-                        child: Row(
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.close, color: Colors.white, size: 28),
-                              onPressed: _toggleEpisodeMenu,
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              '选集 (${_currentEpisodeIndex + 1}/${widget.episodes.length})',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
+                  child: Focus(
+                    focusNode: _episodeMenuFocusNode,
+                    skipTraversal: false,
+                    onKeyEvent: (node, event) {
+                      if (event is KeyDownEvent) {
+                        switch (event.logicalKey) {
+                          case LogicalKeyboardKey.arrowUp:
+                            if (_currentEpisodeIndex > 0) {
+                              setState(() => _currentEpisodeIndex--);
+                              _scrollToCurrentItem();
+                            }
+                            return KeyEventResult.handled;
+                          case LogicalKeyboardKey.arrowDown:
+                            if (_currentEpisodeIndex < widget.episodes.length - 1) {
+                              setState(() => _currentEpisodeIndex++);
+                              _scrollToCurrentItem();
+                            }
+                            return KeyEventResult.handled;
+                          case LogicalKeyboardKey.select:
+                          case LogicalKeyboardKey.enter:
+                            _changeEpisode(_currentEpisodeIndex);
+                            return KeyEventResult.handled;
+                          case LogicalKeyboardKey.contextMenu:
+                          case LogicalKeyboardKey.escape:
+                            _toggleEpisodeMenu();
+                            return KeyEventResult.handled;
+                          default:
+                            return KeyEventResult.handled;
+                        }
+                      }
+                      return KeyEventResult.handled;
+                    },
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.close, color: Colors.white),
+                                onPressed: _toggleEpisodeMenu,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 8),
+                              Text(
+                                '选集',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium!
+                                    .copyWith(color: Colors.white),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${_currentEpisodeIndex + 1}/${widget.episodes.length}',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyLarge!
+                                    .copyWith(
+                                  color: Colors.white.withOpacity(0.7),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const Divider(
-                        color: Colors.white24,
-                        height: 1,
-                        thickness: 1,
-                        indent: 16,
-                        endIndent: 16,
-                      ),
-                      Expanded(
-                        child: widget.episodes.isEmpty
-                            ? const Center(
-                            child: Text(
-                              '暂无选集数据',
-                              style: TextStyle(color: Colors.white54),
-                            ),
-                          )
-                          : ListView.builder(
-                              controller: _episodeMenuScrollController,
-                              padding: const EdgeInsets.only(top: 8, bottom: 24),
-                              itemCount: widget.episodes.length,
-                              itemBuilder: (context, index) {
-                                final episode = widget.episodes[index];
-                                return Padding(
+                        Expanded(
+                          child: ListView.builder(
+                            controller: _episodeMenuScrollController,
+                            padding: const EdgeInsets.only(bottom: 16),
+                            itemCount: widget.episodes.length,
+                            itemBuilder: (context, index) {
+                              return Focus(
+                                autofocus: index == _currentEpisodeIndex,
+                                onKeyEvent: (node, event) {
+                                  if (event is KeyDownEvent) {
+                                    if (event.logicalKey == LogicalKeyboardKey.select ||
+                                        event.logicalKey == LogicalKeyboardKey.enter) {
+                                      _changeEpisode(index);
+                                      return KeyEventResult.handled;
+                                    }
+                                  }
+                                  return KeyEventResult.ignored;
+                                },
+                                child: Padding(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 16,
-                                    vertical: 4,
+                                    vertical: 8,
                                   ),
                                   child: Material(
                                     color: _currentEpisodeIndex == index
-                                        ? const Color(0xFF0066FF).withOpacity(0.3)
+                                        ? const Color(0xFF0066FF).withOpacity(0.2)
                                         : Colors.transparent,
                                     borderRadius: BorderRadius.circular(8),
                                     child: InkWell(
                                       borderRadius: BorderRadius.circular(8),
                                       onTap: () => _changeEpisode(index),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(12),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12.0),
                                         child: Row(
                                           children: [
-                                            Container(
-                                              width: 24,
-                                              height: 24,
-                                              alignment: Alignment.center,
-                                              decoration: BoxDecoration(
-                                                color: _currentEpisodeIndex == index
-                                                    ? const Color(0xFF0066FF)
-                                                    : Colors.white24,
-                                                shape: BoxShape.circle,
-                                              ),
-                                              child: Text(
-                                                '${index + 1}',
-                                                style: TextStyle(
-                                                  color: _currentEpisodeIndex == index
-                                                      ? Colors.white
-                                                      : Colors.white70,
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Text(
-                                                episode['title'] ?? '第${index + 1}集',
-                                                style: TextStyle(
-                                                  color: _currentEpisodeIndex == index
-                                                      ? const Color(0xFF0066FF)
-                                                      : Colors.white,
-                                                  fontSize: 16,
-                                                  fontWeight: _currentEpisodeIndex == index
-                                                      ? FontWeight.bold
-                                                      : FontWeight.normal,
-                                                ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
                                             if (_currentEpisodeIndex == index)
                                               const Icon(
                                                 Icons.play_arrow,
                                                 color: Color(0xFF0066FF),
                                                 size: 20,
                                               ),
+                                            if (_currentEpisodeIndex == index)
+                                              const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                widget.episodes[index]['title']!,
+                                                style: TextStyle(
+                                                  color: _currentEpisodeIndex == index
+                                                      ? const Color(0xFF0066FF)
+                                                      : Colors.white,
+                                                  fontWeight: _currentEpisodeIndex == index
+                                                      ? FontWeight.bold
+                                                      : FontWeight.normal,
+                                                ),
+                                              ),
+                                            ),
                                           ],
                                         ),
                                       ),
                                     ),
                                   ),
-                                );
-                              },
-                            ),
-                      ),
-                    ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
