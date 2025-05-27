@@ -14,6 +14,7 @@ class MovieDetailPage extends StatefulWidget {
 
 class _MovieDetailPageState extends State<MovieDetailPage> {
   List<Map<String, String>> _episodes = [];
+  final List<GlobalKey> _episodeKeys = [];
   final FocusNode _episodesFocusNode = FocusNode();
   final ScrollController _episodesScrollController = ScrollController();
   int _focusedIndex = 0;
@@ -42,6 +43,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   }
 
   void _parseEpisodes() {
+    _episodes.clear();
     final playUrl = widget.movie['vod_play_url'];
     if (playUrl != null && playUrl is String) {
       final parts = playUrl.split('#');
@@ -55,6 +57,8 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
         }
       }
     }
+    _episodeKeys.clear();
+    _episodeKeys.addAll(List.generate(_episodes.length, (index) => GlobalKey()));
     setState(() {});
   }
 
@@ -81,7 +85,6 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
         focusNode: _mainContentFocusNode,
         autofocus: true,
         onKeyEvent: (node, event) {
-          // 处理遥控器方向键
           if (event is KeyDownEvent) {
             if (event.logicalKey == LogicalKeyboardKey.arrowDown &&
                 !_isEpisodesFocused && _episodes.isNotEmpty) {
@@ -240,22 +243,20 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                         focusNode: _episodesFocusNode,
                         autofocus: false,
                         onKeyEvent: (node, event) {
-                          // 处理遥控器左右方向键
                           if (event is KeyDownEvent) {
                             if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
                               if (_focusedIndex > 0) {
                                 setState(() {
                                   _focusedIndex--;
                                 });
-                                // 滚动到可见区域
-                                _episodesScrollController.animateTo(
-                                  (_focusedIndex * 72.0).clamp(
-                                    0.0,
-                                    _episodesScrollController.position.maxScrollExtent,
-                                  ),
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeInOut,
-                                );
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  final context = _episodeKeys[_focusedIndex].currentContext;
+                                  if (context != null) {
+                                    Scrollable.ensureVisible(context,
+                                        duration: const Duration(milliseconds: 300),
+                                        curve: Curves.easeInOut);
+                                  }
+                                });
                                 return KeyEventResult.handled;
                               }
                             } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
@@ -263,21 +264,18 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                                 setState(() {
                                   _focusedIndex++;
                                 });
-                                // 滚动到可见区域
-                                _episodesScrollController.animateTo(
-                                  (_focusedIndex * 72.0 - 100.0).clamp(
-                                    0.0,
-                                    _episodesScrollController.position.maxScrollExtent,
-                                  ),
-                                  duration: const Duration(milliseconds: 300),
-                                  curve: Curves.easeInOut,
-                                );
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  final context = _episodeKeys[_focusedIndex].currentContext;
+                                  if (context != null) {
+                                    Scrollable.ensureVisible(context,
+                                        duration: const Duration(milliseconds: 300),
+                                        curve: Curves.easeInOut);
+                                  }
+                                });
                                 return KeyEventResult.handled;
                               }
                             } else if (event.logicalKey == LogicalKeyboardKey.select ||
-                                event.logicalKey == LogicalKeyboardKey.enter ||
-                                event.physicalKey == PhysicalKeyboardKey.select ||
-                                event.physicalKey == PhysicalKeyboardKey.enter) {
+                                event.logicalKey == LogicalKeyboardKey.enter) {
                               _playEpisode(_focusedIndex);
                               return KeyEventResult.handled;
                             } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
@@ -297,6 +295,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                             return Padding(
                               padding: const EdgeInsets.only(right: 12.0),
                               child: Focus(
+                                key: _episodeKeys[index],
                                 onFocusChange: (hasFocus) {
                                   if (hasFocus) {
                                     setState(() {
