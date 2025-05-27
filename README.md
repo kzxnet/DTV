@@ -130,6 +130,5 @@ flutter build apk --release
 ## 🖼️ 应用截图
 | 主界面 | 播放页 | 搜索页 |
 |--------|--------|--------|
-| ![主界面](<img width="1440" alt="image" src="https://github.com/user-attachments/assets/4154a8c6-42ca-4e0a-95c9-e99d337139fb" />) | ![播放页](<img width="1440" alt="image" src="https://github.com/user-attachments/assets/96a5b846-a27e-409a-bf7a-105b581490ed" />) | ![搜索页](<img width="1440" alt="image" src="https://github.com/user-attachments/assets/d85417a3-f7ea-4cea-9d34-eb17702fffc6" />
-) |
+| ![主界面](./screenshots/home.png) | ![搜索页](./screenshots/search.png) | ![详情页](./screenshots/detail.png) | ![播放页](./screenshots/player.png) |
 ```
