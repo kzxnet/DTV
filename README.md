@@ -1,5 +1,3 @@
-以下是完整的 **README.md** 文件，包含项目介绍、功能特性、技术栈、数据接口、开源协议、免责声明、开发环境和参考资料：
-
 ---
 
 # LibreTV 应用
@@ -111,7 +109,7 @@ flutter build apk --release
 - [Flutter 官方文档](https://docs.flutter.dev/)
 - [Dart 语言指南](https://dart.dev/guides)
 - [video_player 插件文档](https://pub.dev/packages/video_player)
-- [苹果CMS API 文档](https://www.applecm.com/document/)
+- [苹果CMS API 文档]()
 - [TV 应用设计规范](https://developer.android.com/design/tv)
 
 ---
@@ -132,5 +130,6 @@ flutter build apk --release
 ## 🖼️ 应用截图
 | 主界面 | 播放页 | 搜索页 |
 |--------|--------|--------|
-| ![主界面](screenshots/home.png) | ![播放页](screenshots/player.png) | ![搜索页](screenshots/search.png) |
+| ![主界面](<img width="1440" alt="image" src="https://github.com/user-attachments/assets/4154a8c6-42ca-4e0a-95c9-e99d337139fb" />) | ![播放页](<img width="1440" alt="image" src="https://github.com/user-attachments/assets/96a5b846-a27e-409a-bf7a-105b581490ed" />) | ![搜索页](<img width="1440" alt="image" src="https://github.com/user-attachments/assets/d85417a3-f7ea-4cea-9d34-eb17702fffc6" />
+) |
 ```
