@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.example.libretv_app"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "27.0.12077973"
     buildToolsVersion = "34.0.0"  // 添加这一行
 
     compileOptions {
