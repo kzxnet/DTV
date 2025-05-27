@@ -36,15 +36,12 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   bool _isLoading = true;
   String? _errorMessage;
   bool _showControls = true;
-  bool _showEpisodeMenu = false;
   final FocusNode _playerFocusNode = FocusNode();
-  final FocusNode _episodeMenuFocusNode = FocusNode();
-  final ScrollController _episodeMenuScrollController = ScrollController();
-  DateTime? _lastKeyEventTime;
   bool _isFastSeeking = false;
   Duration _seekStep = const Duration(seconds: 10);
   Timer? _seekTimer;
   bool _isLongPressing = false;
+  DateTime? _lastKeyEventTime;
 
   _FullScreenPlayerPageState() : _currentEpisodeIndex = 0;
 
@@ -60,20 +57,11 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         _startControlsAutoHideTimer();
       }
     });
-
-    _episodeMenuFocusNode.addListener(() {
-      if (_episodeMenuFocusNode.hasFocus) {
-        setState(() {
-          _showControls = true;
-          _showEpisodeMenu = true;
-        });
-      }
-    });
   }
 
   void _startControlsAutoHideTimer() {
     Future.delayed(const Duration(seconds: 3), () {
-      if (mounted && !_showEpisodeMenu && _playerFocusNode.hasFocus) {
+      if (mounted && _playerFocusNode.hasFocus) {
         setState(() => _showControls = false);
       }
     });
@@ -105,8 +93,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     _controller.dispose();
     _chewieController?.dispose();
     _playerFocusNode.dispose();
-    _episodeMenuFocusNode.dispose();
-    _episodeMenuScrollController.dispose();
     super.dispose();
   }
 
@@ -121,7 +107,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       await _controller.initialize();
       _setupWakelockListener();
 
-      // 添加播放完成监听
       _controller.addListener(() {
         if (_controller.value.position >= _controller.value.duration &&
             !_controller.value.isLooping) {
@@ -168,8 +153,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         index < 0 ||
         index >= widget.episodes.length ||
         index == _currentEpisodeIndex) {
-      setState(() => _showEpisodeMenu = false);
-      _playerFocusNode.requestFocus();
       return;
     }
 
@@ -194,7 +177,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       _currentEpisodeIndex = index;
       _isLoading = true;
       _errorMessage = null;
-      _showEpisodeMenu = false;
     });
 
     try {
@@ -202,7 +184,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       await _controller.initialize();
       _setupWakelockListener();
 
-      // 重新添加播放完成监听
       _controller.addListener(() {
         if (_controller.value.position >= _controller.value.duration &&
             !_controller.value.isLooping) {
@@ -226,15 +207,12 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       }
       debugPrint('初始化播放器错误: $e');
     }
-
-    _playerFocusNode.requestFocus();
   }
 
   void _playNextEpisode() {
     if (_currentEpisodeIndex < widget.episodes.length - 1) {
       _changeEpisode(_currentEpisodeIndex + 1);
     } else {
-      // 如果是最后一集，暂停播放
       _controller.pause();
       if (mounted) {
         setState(() {
@@ -302,37 +280,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     _controller.setVolume((_controller.value.volume - 0.1).clamp(0.0, 1.0));
   }
 
-  void _toggleEpisodeMenu() {
-    setState(() {
-      _showControls = true;
-      _showEpisodeMenu = !_showEpisodeMenu;
-    });
-
-    if (_showEpisodeMenu) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _episodeMenuFocusNode.requestFocus();
-          _scrollToCurrentItem();
-        }
-      });
-    } else {
-      _playerFocusNode.requestFocus();
-    }
-
-    _startControlsAutoHideTimer();
-  }
-
-  void _scrollToCurrentItem() {
-    _episodeMenuScrollController.animateTo(
-      (_currentEpisodeIndex * 56.0).clamp(
-        0.0,
-        _episodeMenuScrollController.position.maxScrollExtent,
-      ),
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
-  }
-
   void _handleKeyRepeat(KeyEvent event) {
     final now = DateTime.now();
     if (_lastKeyEventTime != null &&
@@ -362,20 +309,15 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
           const SingleActivator(LogicalKeyboardKey.arrowDown): const DownIntent(),
           const SingleActivator(LogicalKeyboardKey.arrowLeft): const LeftIntent(),
           const SingleActivator(LogicalKeyboardKey.arrowRight): const RightIntent(),
-          const SingleActivator(LogicalKeyboardKey.contextMenu): const MenuIntent(),
-          const SingleActivator(LogicalKeyboardKey.escape): const BackIntent(),
           const SingleActivator(LogicalKeyboardKey.mediaPlayPause): const PlayPauseIntent(),
+          const SingleActivator(LogicalKeyboardKey.escape): const BackIntent(),
+          // 注意：这里没有包含菜单键的快捷键
         },
         child: Actions(
           actions: {
             BackIntent: CallbackAction<BackIntent>(
               onInvoke: (intent) {
-                if (_showEpisodeMenu) {
-                  setState(() => _showEpisodeMenu = false);
-                  _playerFocusNode.requestFocus();
-                } else {
-                  Navigator.pop(context);
-                }
+                Navigator.pop(context);
                 return null;
               },
             ),
@@ -388,7 +330,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
           },
           child: Stack(
             children: [
-              // Video player area
               Focus(
                 autofocus: true,
                 focusNode: _playerFocusNode,
@@ -405,10 +346,10 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                         _togglePlayPause();
                         return KeyEventResult.handled;
                       case LogicalKeyboardKey.arrowRight:
-                        _startSeek(_seekStep); // 开始快进
+                        _startSeek(_seekStep);
                         return KeyEventResult.handled;
                       case LogicalKeyboardKey.arrowLeft:
-                        _startSeek(-_seekStep); // 开始快退
+                        _startSeek(-_seekStep);
                         return KeyEventResult.handled;
                       case LogicalKeyboardKey.arrowUp:
                         _increaseVolume();
@@ -416,15 +357,15 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                       case LogicalKeyboardKey.arrowDown:
                         _decreaseVolume();
                         return KeyEventResult.handled;
-                      case LogicalKeyboardKey.contextMenu:
-                        _toggleEpisodeMenu();
-                        return KeyEventResult.handled;
                       case LogicalKeyboardKey.escape:
                         Navigator.pop(context);
                         return KeyEventResult.handled;
                       case LogicalKeyboardKey.mediaPlayPause:
                         _togglePlayPause();
                         return KeyEventResult.handled;
+                    // 明确忽略菜单键
+                      case LogicalKeyboardKey.contextMenu:
+                        return KeyEventResult.handled; // 直接处理掉，不做任何操作
                       default:
                         return KeyEventResult.ignored;
                     }
@@ -432,7 +373,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                     switch (event.logicalKey) {
                       case LogicalKeyboardKey.arrowRight:
                       case LogicalKeyboardKey.arrowLeft:
-                        _stopSeek(); // 停止快进/快退
+                        _stopSeek();
                         return KeyEventResult.handled;
                     }
                   }
@@ -450,7 +391,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                 ),
               ),
 
-              // Top gradient overlay
               if (_showControls)
                 Positioned(
                   top: 0,
@@ -471,8 +411,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                   ),
                 ),
 
-              // Bottom controls overlay
-              if (_showControls && !_showEpisodeMenu)
+              if (_showControls)
                 Positioned(
                   left: 0,
                   right: 0,
@@ -551,12 +490,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                                         color: Colors.white, size: 24),
                                     onPressed: () {},
                                   ),
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    icon: const Icon(Icons.list,
-                                        color: Colors.white, size: 24),
-                                    onPressed: _toggleEpisodeMenu,
-                                  ),
                                 ],
                               ),
                             ],
@@ -568,162 +501,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                   ),
                 ),
 
-              // Right-side episode menu
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-                right: _showEpisodeMenu ? 0 : -320,
-                top: 0,
-                bottom: 0,
-                child: Container(
-                  width: 320,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.85),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
-                        blurRadius: 16,
-                        offset: const Offset(-8, 0),
-                      ),
-                    ],
-                  ),
-                  child: Focus(
-                    focusNode: _episodeMenuFocusNode,
-                    skipTraversal: false,
-                    onKeyEvent: (node, event) {
-                      if (event is KeyDownEvent) {
-                        switch (event.logicalKey) {
-                          case LogicalKeyboardKey.arrowUp:
-                            if (_currentEpisodeIndex > 0) {
-                              setState(() => _currentEpisodeIndex--);
-                              _scrollToCurrentItem();
-                            }
-                            return KeyEventResult.handled;
-                          case LogicalKeyboardKey.arrowDown:
-                            if (_currentEpisodeIndex < widget.episodes.length - 1) {
-                              setState(() => _currentEpisodeIndex++);
-                              _scrollToCurrentItem();
-                            }
-                            return KeyEventResult.handled;
-                          case LogicalKeyboardKey.select:
-                          case LogicalKeyboardKey.enter:
-                            _changeEpisode(_currentEpisodeIndex);
-                            return KeyEventResult.handled;
-                          case LogicalKeyboardKey.contextMenu:
-                          case LogicalKeyboardKey.escape:
-                            _toggleEpisodeMenu();
-                            return KeyEventResult.handled;
-                          default:
-                            return KeyEventResult.handled;
-                        }
-                      }
-                      return KeyEventResult.handled;
-                    },
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(16.0),
-                          child: Row(
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.close, color: Colors.white),
-                                onPressed: _toggleEpisodeMenu,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                '选集',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineMedium!
-                                    .copyWith(color: Colors.white),
-                              ),
-                              const Spacer(),
-                              Text(
-                                '${_currentEpisodeIndex + 1}/${widget.episodes.length}',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyLarge!
-                                    .copyWith(
-                                  color: Colors.white.withOpacity(0.7),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: ListView.builder(
-                            controller: _episodeMenuScrollController,
-                            padding: const EdgeInsets.only(bottom: 16),
-                            itemCount: widget.episodes.length,
-                            itemBuilder: (context, index) {
-                              return Focus(
-                                autofocus: index == _currentEpisodeIndex,
-                                onKeyEvent: (node, event) {
-                                  if (event is KeyDownEvent) {
-                                    if (event.logicalKey == LogicalKeyboardKey.select ||
-                                        event.logicalKey == LogicalKeyboardKey.enter) {
-                                      _changeEpisode(index);
-                                      return KeyEventResult.handled;
-                                    }
-                                  }
-                                  return KeyEventResult.ignored;
-                                },
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  child: Material(
-                                    color: _currentEpisodeIndex == index
-                                        ? const Color(0xFF0066FF).withOpacity(0.2)
-                                        : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(8),
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(8),
-                                      onTap: () => _changeEpisode(index),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(12.0),
-                                        child: Row(
-                                          children: [
-                                            if (_currentEpisodeIndex == index)
-                                              const Icon(
-                                                Icons.play_arrow,
-                                                color: Color(0xFF0066FF),
-                                                size: 20,
-                                              ),
-                                            if (_currentEpisodeIndex == index)
-                                              const SizedBox(width: 8),
-                                            Expanded(
-                                              child: Text(
-                                                widget.episodes[index]['title']!,
-                                                style: TextStyle(
-                                                  color: _currentEpisodeIndex == index
-                                                      ? const Color(0xFF0066FF)
-                                                      : Colors.white,
-                                                  fontWeight: _currentEpisodeIndex == index
-                                                      ? FontWeight.bold
-                                                      : FontWeight.normal,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              // Fast seeking indicator
               if (_isFastSeeking)
                 Positioned(
                   left: 0,
@@ -758,7 +535,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   }
 }
 
-// Custom Intents
 class UpIntent extends Intent {
   const UpIntent();
 }
@@ -773,10 +549,6 @@ class LeftIntent extends Intent {
 
 class RightIntent extends Intent {
   const RightIntent();
-}
-
-class MenuIntent extends Intent {
-  const MenuIntent();
 }
 
 class BackIntent extends Intent {
