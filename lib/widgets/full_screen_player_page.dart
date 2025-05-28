@@ -276,17 +276,17 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     });
   }
 
-  void _increaseVolume() {
-    setState(() => _showControls = true);
-    _startControlsAutoHideTimer();
-    _controller.setVolume((_controller.value.volume + 0.1).clamp(0.0, 1.0));
-  }
-
-  void _decreaseVolume() {
-    setState(() => _showControls = true);
-    _startControlsAutoHideTimer();
-    _controller.setVolume((_controller.value.volume - 0.1).clamp(0.0, 1.0));
-  }
+  // void _increaseVolume() {
+  //   setState(() => _showControls = true);
+  //   _startControlsAutoHideTimer();
+  //   _controller.setVolume((_controller.value.volume + 0.1).clamp(0.0, 1.0));
+  // }
+  //
+  // void _decreaseVolume() {
+  //   setState(() => _showControls = true);
+  //   _startControlsAutoHideTimer();
+  //   _controller.setVolume((_controller.value.volume - 0.1).clamp(0.0, 1.0));
+  // }
 
   void _handleKeyRepeat(KeyEvent event) {
     final now = DateTime.now();
@@ -369,10 +369,12 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                         _startSeek(-_seekStep);
                         return KeyEventResult.handled;
                       case LogicalKeyboardKey.arrowUp:
-                        _increaseVolume();
+                        // _increaseVolume();
+                        _changeEpisode(_currentEpisodeIndex - 1);
                         return KeyEventResult.handled;
                       case LogicalKeyboardKey.arrowDown:
-                        _decreaseVolume();
+                        // _decreaseVolume();
+                        _changeEpisode(_currentEpisodeIndex + 1);
                         return KeyEventResult.handled;
                       case LogicalKeyboardKey.escape:
                         Navigator.pop(context);
@@ -521,11 +523,9 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                                       size: 24,
                                     ),
                                     onPressed:
-                                        _currentEpisodeIndex > 0
-                                            ? () => _changeEpisode(
-                                              _currentEpisodeIndex - 1,
-                                            )
-                                            : null,
+                                        () => _changeEpisode(
+                                          _currentEpisodeIndex - 1,
+                                        ),
                                   ),
                                   IconButton(
                                     icon: const Icon(
@@ -534,12 +534,9 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                                       size: 24,
                                     ),
                                     onPressed:
-                                        _currentEpisodeIndex <
-                                                widget.episodes.length - 1
-                                            ? () => _changeEpisode(
-                                              _currentEpisodeIndex + 1,
-                                            )
-                                            : null,
+                                        () => _changeEpisode(
+                                          _currentEpisodeIndex + 1,
+                                        ),
                                   ),
                                 ],
                               ),
