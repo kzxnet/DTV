@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:developer';
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -38,16 +40,21 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   bool _showControls = true;
   final FocusNode _playerFocusNode = FocusNode();
   bool _isFastSeeking = false;
-  Duration _seekStep = const Duration(seconds: 10);
+  final Duration _seekStep = const Duration(seconds: 10);
   Timer? _seekTimer;
   bool _isLongPressing = false;
   DateTime? _lastKeyEventTime;
+  // 新增：记录每一集的播放进度
+  final Map<int, Duration> _episodeProgress = {};
 
   _FullScreenPlayerPageState() : _currentEpisodeIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    log('movie: ${jsonEncode(widget.movie)}');
+    log('episodes: ${jsonEncode(widget.episodes)}');
+
     _currentEpisodeIndex = widget.initialIndex;
     _initializePlayer(widget.episodes[_currentEpisodeIndex]['url']!);
 
@@ -76,11 +83,11 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   }
 
   void _setupWakelockListener() {
-    bool _wasPlaying = false;
+    bool wasPlaying = false;
     _controller.addListener(() {
       final isPlaying = _controller.value.isPlaying;
-      if (_wasPlaying != isPlaying) {
-        _wasPlaying = isPlaying;
+      if (wasPlaying != isPlaying) {
+        wasPlaying = isPlaying;
         _controlWakelock(isPlaying);
       }
     });
@@ -103,11 +110,21 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     });
 
     try {
-      _controller = VideoPlayerController.network(url);
+      _controller = VideoPlayerController.networkUrl(Uri.parse(url));
       await _controller.initialize();
       _setupWakelockListener();
 
+      // 新增：恢复当前剧集的播放进度
+      if (_episodeProgress.containsKey(_currentEpisodeIndex)) {
+        await _controller.seekTo(_episodeProgress[_currentEpisodeIndex]!);
+      }
+
       _controller.addListener(() {
+        // 新增：记录当前播放进度
+        if (_controller.value.isPlaying) {
+          _episodeProgress[_currentEpisodeIndex] = _controller.value.position;
+        }
+
         if (_controller.value.position >= _controller.value.duration &&
             !_controller.value.isLooping) {
           _playNextEpisode();
@@ -121,6 +138,11 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         allowFullScreen: false,
         allowedScreenSleep: false,
         showControls: false,
+        draggableProgressBar: false,
+        showControlsOnInitialize: false,
+        showOptions: false,
+        allowPlaybackSpeedChanging: false,
+        useRootNavigator: false,
         materialProgressColors: ChewieProgressColors(
           playedColor: const Color(0xFF0066FF),
           handleColor: const Color(0xFF0066FF),
@@ -156,6 +178,11 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       return;
     }
 
+    // 新增：保存当前剧集的播放进度
+    if (_controller.value.isInitialized) {
+      _episodeProgress[_currentEpisodeIndex] = _controller.value.position;
+    }
+
     final url = widget.episodes[index]['url'];
     if (url == null || url.isEmpty) {
       setState(() {
@@ -180,21 +207,29 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     });
 
     try {
-      _controller = VideoPlayerController.network(url);
+      _controller = VideoPlayerController.networkUrl(Uri.parse(url));
       await _controller.initialize();
       _setupWakelockListener();
 
+      // 新增：恢复新剧集的播放进度
+      if (_episodeProgress.containsKey(_currentEpisodeIndex)) {
+        await _controller.seekTo(_episodeProgress[_currentEpisodeIndex]!);
+      }
+
       _controller.addListener(() {
+        // 新增：记录当前播放进度
+        if (_controller.value.isPlaying) {
+          _episodeProgress[_currentEpisodeIndex] = _controller.value.position;
+        }
+
         if (_controller.value.position >= _controller.value.duration &&
             !_controller.value.isLooping) {
           _playNextEpisode();
         }
       });
 
-      _chewieController = ChewieController(
+      _chewieController = _chewieController!.copyWith(
         videoPlayerController: _controller,
-        autoPlay: true,
-        looping: false,
       );
 
       if (mounted) setState(() => _isLoading = false);
@@ -244,7 +279,8 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     });
   }
 
-  void _stopSeek() {
+  void _stopSeek(Duration step) {
+    _handleSeek(step);
     _isLongPressing = false;
     _seekTimer?.cancel();
     _seekTimer = null;
@@ -258,32 +294,32 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     _startControlsAutoHideTimer();
 
     final newPosition = _controller.value.position + duration;
-    _controller.seekTo(newPosition.clamp(
-      Duration.zero,
-      _controller.value.duration,
-    ));
+    _controller.seekTo(
+      newPosition.clamp(Duration.zero, _controller.value.duration),
+    );
 
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) setState(() => _isFastSeeking = false);
     });
   }
 
-  void _increaseVolume() {
-    setState(() => _showControls = true);
-    _startControlsAutoHideTimer();
-    _controller.setVolume((_controller.value.volume + 0.1).clamp(0.0, 1.0));
-  }
-
-  void _decreaseVolume() {
-    setState(() => _showControls = true);
-    _startControlsAutoHideTimer();
-    _controller.setVolume((_controller.value.volume - 0.1).clamp(0.0, 1.0));
-  }
+  // void _increaseVolume() {
+  //   setState(() => _showControls = true);
+  //   _startControlsAutoHideTimer();
+  //   _controller.setVolume((_controller.value.volume + 0.1).clamp(0.0, 1.0));
+  // }
+  //
+  // void _decreaseVolume() {
+  //   setState(() => _showControls = true);
+  //   _startControlsAutoHideTimer();
+  //   _controller.setVolume((_controller.value.volume - 0.1).clamp(0.0, 1.0));
+  // }
 
   void _handleKeyRepeat(KeyEvent event) {
     final now = DateTime.now();
     if (_lastKeyEventTime != null &&
-        now.difference(_lastKeyEventTime!) < const Duration(milliseconds: 200)) {
+        now.difference(_lastKeyEventTime!) <
+            const Duration(milliseconds: 200)) {
       return;
     }
     _lastKeyEventTime = now;
@@ -303,13 +339,19 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       backgroundColor: Colors.black,
       body: Shortcuts(
         shortcuts: {
-          const SingleActivator(LogicalKeyboardKey.select): const ActivateIntent(),
-          const SingleActivator(LogicalKeyboardKey.enter): const ActivateIntent(),
+          const SingleActivator(LogicalKeyboardKey.select):
+              const ActivateIntent(),
+          const SingleActivator(LogicalKeyboardKey.enter):
+              const ActivateIntent(),
           const SingleActivator(LogicalKeyboardKey.arrowUp): const UpIntent(),
-          const SingleActivator(LogicalKeyboardKey.arrowDown): const DownIntent(),
-          const SingleActivator(LogicalKeyboardKey.arrowLeft): const LeftIntent(),
-          const SingleActivator(LogicalKeyboardKey.arrowRight): const RightIntent(),
-          const SingleActivator(LogicalKeyboardKey.mediaPlayPause): const PlayPauseIntent(),
+          const SingleActivator(LogicalKeyboardKey.arrowDown):
+              const DownIntent(),
+          const SingleActivator(LogicalKeyboardKey.arrowLeft):
+              const LeftIntent(),
+          const SingleActivator(LogicalKeyboardKey.arrowRight):
+              const RightIntent(),
+          const SingleActivator(LogicalKeyboardKey.mediaPlayPause):
+              const PlayPauseIntent(),
           const SingleActivator(LogicalKeyboardKey.escape): const BackIntent(),
           // 注意：这里没有包含菜单键的快捷键
         },
@@ -333,7 +375,9 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
               Focus(
                 autofocus: true,
                 focusNode: _playerFocusNode,
-                onKeyEvent: (node, event) {
+                onKeyEvent: (node, KeyEvent event) {
+                  log('onKeyEvent: $event');
+
                   if (event is KeyRepeatEvent) {
                     _handleKeyRepeat(event);
                     return KeyEventResult.handled;
@@ -352,10 +396,12 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                         _startSeek(-_seekStep);
                         return KeyEventResult.handled;
                       case LogicalKeyboardKey.arrowUp:
-                        _increaseVolume();
+                        // _increaseVolume();
+                        _changeEpisode(_currentEpisodeIndex - 1);
                         return KeyEventResult.handled;
                       case LogicalKeyboardKey.arrowDown:
-                        _decreaseVolume();
+                        // _decreaseVolume();
+                        _changeEpisode(_currentEpisodeIndex + 1);
                         return KeyEventResult.handled;
                       case LogicalKeyboardKey.escape:
                         Navigator.pop(context);
@@ -363,7 +409,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                       case LogicalKeyboardKey.mediaPlayPause:
                         _togglePlayPause();
                         return KeyEventResult.handled;
-                    // 明确忽略菜单键
+                      // 明确忽略菜单键
                       case LogicalKeyboardKey.contextMenu:
                         return KeyEventResult.handled; // 直接处理掉，不做任何操作
                       default:
@@ -372,25 +418,61 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                   } else if (event is KeyUpEvent) {
                     switch (event.logicalKey) {
                       case LogicalKeyboardKey.arrowRight:
+                        _stopSeek(_seekStep);
+                        return KeyEventResult.handled;
                       case LogicalKeyboardKey.arrowLeft:
-                        _stopSeek();
+                        _stopSeek(-_seekStep);
                         return KeyEventResult.handled;
                     }
                   }
                   return KeyEventResult.ignored;
                 },
                 child: Center(
-                  child: _isLoading
-                      ? const CircularProgressIndicator(strokeWidth: 3)
-                      : _errorMessage != null
-                      ? Text(
-                    _errorMessage!,
-                    style: const TextStyle(color: Colors.white),
-                  )
-                      : Chewie(controller: _chewieController!),
+                  child:
+                      _isLoading
+                          ? const CircularProgressIndicator(strokeWidth: 3)
+                          : _errorMessage != null
+                          ? Text(
+                            _errorMessage!,
+                            style: const TextStyle(color: Colors.white),
+                          )
+                          : Chewie(controller: _chewieController!),
                 ),
               ),
-
+              if (_showControls)
+                Positioned(
+                  top: 40,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: AnimatedOpacity(
+                      opacity:
+                          _showControls && !_controller.value.isPlaying
+                              ? 1.0
+                              : 0.0,
+                      duration: const Duration(milliseconds: 300),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          widget.episodes[_currentEpisodeIndex]['title'] ??
+                              '当前剧集 ${_currentEpisodeIndex + 1}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               if (_showControls)
                 Positioned(
                   top: 0,
@@ -402,10 +484,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.7),
-                          Colors.transparent,
-                        ],
+                        colors: [Colors.black54, Colors.transparent],
                       ),
                     ),
                   ),
@@ -422,10 +501,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                       gradient: LinearGradient(
                         begin: Alignment.bottomCenter,
                         end: Alignment.topCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.8),
-                          Colors.transparent,
-                        ],
+                        colors: [Colors.black87, Colors.transparent],
                       ),
                     ),
                     child: Column(
@@ -468,26 +544,37 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                                   ),
                                   const SizedBox(width: 16),
                                   IconButton(
-                                    icon: const Icon(Icons.skip_previous,
-                                        color: Colors.white, size: 24),
-                                    onPressed: _currentEpisodeIndex > 0
-                                        ? () => _changeEpisode(_currentEpisodeIndex - 1)
-                                        : null,
+                                    icon: const Icon(
+                                      Icons.skip_previous,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                                    onPressed:
+                                        () => _changeEpisode(
+                                          _currentEpisodeIndex - 1,
+                                        ),
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.skip_next,
-                                        color: Colors.white, size: 24),
-                                    onPressed: _currentEpisodeIndex < widget.episodes.length - 1
-                                        ? () => _changeEpisode(_currentEpisodeIndex + 1)
-                                        : null,
+                                    icon: const Icon(
+                                      Icons.skip_next,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                                    onPressed:
+                                        () => _changeEpisode(
+                                          _currentEpisodeIndex + 1,
+                                        ),
                                   ),
                                 ],
                               ),
                               Row(
                                 children: [
                                   IconButton(
-                                    icon: const Icon(Icons.volume_up,
-                                        color: Colors.white, size: 24),
+                                    icon: const Icon(
+                                      Icons.volume_up,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
                                     onPressed: () {},
                                   ),
                                 ],
@@ -513,7 +600,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.7),
+                        color: Colors.black54,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
