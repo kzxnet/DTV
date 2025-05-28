@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 0.0.39
+version: 0.0.40
 
 environment:
   sdk: ^3.7.2
@@ -32,8 +32,8 @@ dependencies:
     sdk: flutter
   dio: ^5.8.0+1 # HTTP客户端，用于网络请求
   provider: ^6.1.1 # 状态管理，简化Widget树中的状态共享
-  video_player: ^2.8.3 # Flutter官方视频播放器插件，提供基础播放功能
-  chewie: ^1.5.2 # 视频播放器UI控件，基于video_player的增强界面
+  video_player: ^2.9.5 # Flutter官方视频播放器插件，提供基础播放功能
+  chewie: ^1.11.3 # 视频播放器UI控件，基于video_player的增强界面
   cached_network_image: ^3.3.0 # 网络图片缓存和加载库
   shared_preferences: ^2.2.2 # 轻量级本地数据存储(键值对)
   flutter_secure_storage: ^8.0.0 # 安全存储敏感数据(如token)
