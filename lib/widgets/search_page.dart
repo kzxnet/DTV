@@ -110,6 +110,7 @@ class _SearchPageState extends State<SearchPage> {
         });
       }
     } catch (e) {
+      if(e is DioException && e.type == DioExceptionType.cancel) return;
       _showError('搜索失败: ${e.toString()}');
     } finally {
       if (mounted) {
