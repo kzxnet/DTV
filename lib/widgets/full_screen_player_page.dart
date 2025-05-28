@@ -126,6 +126,11 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         allowFullScreen: false,
         allowedScreenSleep: false,
         showControls: false,
+        draggableProgressBar: false,
+        showControlsOnInitialize: false,
+        showOptions: false,
+        allowPlaybackSpeedChanging: false,
+        useRootNavigator: false,
         materialProgressColors: ChewieProgressColors(
           playedColor: const Color(0xFF0066FF),
           handleColor: const Color(0xFF0066FF),
@@ -196,10 +201,8 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         }
       });
 
-      _chewieController = ChewieController(
+      _chewieController = _chewieController!.copyWith(
         videoPlayerController: _controller,
-        autoPlay: true,
-        looping: false,
       );
 
       if (mounted) setState(() => _isLoading = false);
