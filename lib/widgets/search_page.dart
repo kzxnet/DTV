@@ -13,10 +13,11 @@ class SearchPage extends StatefulWidget {
 }
 
 class _SearchPageState extends State<SearchPage> {
-  final Dio _dio = Dio();
+  final Dio _dio = Dio()..interceptors.add(LogInterceptor());
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   List<dynamic> _movies = [];
+  List<dynamic> _recommendations = []; // 新增：推荐列表
   bool _isLoading = false;
   bool _showSearchHint = true;
 
@@ -32,6 +33,37 @@ class _SearchPageState extends State<SearchPage> {
     super.initState();
     _searchFocusNode.addListener(_onFocusChange);
     _searchController.addListener(_onSearchTextChange);
+    _fetchRecommendations(); // 新增：初始化时获取推荐
+  }
+
+  // 新增：获取推荐电影
+  Future<void> _fetchRecommendations() async {
+    try {
+      final response = await _dio.get(
+        'https://movie.douban.com/j/search_subjects',
+        queryParameters: {
+          'type': 'movie',
+          'tag': '热门',
+          'sort': 'recommend',
+          'page_limit': '100',
+          'page_start': '0',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          _recommendations = response.data['subjects'] ?? [];
+        });
+      }
+    } catch (e) {
+      debugPrint('获取推荐失败: $e');
+    }
+  }
+
+  // 修改：点击推荐项进行搜索
+  void _searchRecommendation(String title) {
+    _searchController.text = title;
+    _searchMovies(title);
   }
 
   void _onFocusChange() {
@@ -217,96 +249,116 @@ class _SearchPageState extends State<SearchPage> {
 
   Widget _buildContent() {
     if (_isLoading) {
-      return Expanded(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const CircularProgressIndicator(
-                strokeWidth: 6,
-                valueColor: AlwaysStoppedAnimation(Color(0xFF00C8FF)),
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(
+              strokeWidth: 6,
+              valueColor: AlwaysStoppedAnimation(Color(0xFF00C8FF)),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              '正在搜索中...',
+              style: TextStyle(
+                fontSize: 24,
+                color: _textColor.withAlpha((255 * 0.8).toInt()),
               ),
-              const SizedBox(height: 32),
-              Text(
-                '正在搜索中...',
-                style: TextStyle(
-                  fontSize: 24,
-                  color: _textColor.withAlpha((255 * 0.8).toInt()),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
 
     if (_movies.isEmpty) {
-      return Expanded(
-        child: Center(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child:
-                _showSearchHint
-                    ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.movie_creation,
-                          size: 120,
-                          color: _hintColor.withAlpha((255 * 0.3).toInt()),
-                        ),
-                        const SizedBox(height: 32),
-                        Text(
-                          '输入电影或电视剧名称',
-                          style: TextStyle(
-                            fontSize: 28,
-                            color: _hintColor,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          '使用遥控器方向键导航，确认键选择',
-                          style: TextStyle(
-                            fontSize: 20,
-                            color: _hintColor.withAlpha((255 * 0.7).toInt()),
-                          ),
-                        ),
-                      ],
-                    )
-                    : Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.search_off,
-                          size: 120,
-                          color: _hintColor.withAlpha((255 * 0.3).toInt()),
-                        ),
-                        const SizedBox(height: 32),
-                        Text(
-                          '没有找到相关内容',
-                          style: TextStyle(
-                            fontSize: 28,
-                            color: _hintColor,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          '尝试其他关键词',
-                          style: TextStyle(
-                            fontSize: 20,
-                            color: _hintColor.withAlpha((255 * 0.7).toInt()),
-                          ),
-                        ),
-                      ],
-                    ),
-          ),
-        ),
-      );
+      return _showSearchHint
+          ? SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.movie_creation,
+                  size: 120,
+                  color: _hintColor.withAlpha((255 * 0.3).toInt()),
+                ),
+                const SizedBox(height: 32),
+                Text(
+                  '输入电影或电视剧名称',
+                  style: TextStyle(
+                    fontSize: 28,
+                    color: _hintColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '使用遥控器方向键导航，确认键选择',
+                  style: TextStyle(
+                    fontSize: 20,
+                    color: _hintColor.withAlpha((255 * 0.7).toInt()),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                // 新增：推荐列表标题
+                Text(
+                  '热门推荐',
+                  style: TextStyle(
+                    fontSize: 24,
+                    color: _textColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // 新增：推荐列表
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 48),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    childAspectRatio: 0.7,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                  ),
+                  itemCount: _recommendations.length,
+                  itemBuilder: (context, index) {
+                    final movie = _recommendations[index];
+                    return _buildRecommendationCard(movie);
+                  },
+                ),
+              ],
+            ),
+          )
+          : Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.search_off,
+                size: 120,
+                color: _hintColor.withAlpha((255 * 0.3).toInt()),
+              ),
+              const SizedBox(height: 32),
+              Text(
+                '没有找到相关内容',
+                style: TextStyle(
+                  fontSize: 28,
+                  color: _hintColor,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '尝试其他关键词',
+                style: TextStyle(
+                  fontSize: 20,
+                  color: _hintColor.withAlpha((255 * 0.7).toInt()),
+                ),
+              ),
+            ],
+          );
     }
 
-    return Expanded(
+    return SingleChildScrollView(
       child: Column(
         children: [
           Padding(
@@ -323,23 +375,123 @@ class _SearchPageState extends State<SearchPage> {
               ],
             ),
           ),
-          Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 8),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4, // 4 items per row
-                childAspectRatio: 0.7, // Adjusted aspect ratio
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-              ),
-              itemCount: _movies.length,
-              itemBuilder: (context, index) {
-                final movie = _movies[index];
-                return _buildMovieCard(movie);
-              },
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 8),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4, // 4 items per row
+              childAspectRatio: 0.7, // Adjusted aspect ratio
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
             ),
+            itemCount: _movies.length,
+            itemBuilder: (context, index) {
+              final movie = _movies[index];
+              return _buildMovieCard(movie);
+            },
           ),
         ],
+      ),
+    );
+  }
+
+  // 新增：推荐卡片组件
+  Widget _buildRecommendationCard(Map<String, dynamic> movie) {
+    return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+                event.logicalKey == LogicalKeyboardKey.enter)) {
+          _searchRecommendation(movie['title']);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Builder(
+        builder: (context) {
+          final hasFocus = Focus.of(context).hasFocus;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            margin: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              boxShadow:
+                  hasFocus
+                      ? [
+                        BoxShadow(
+                          color: _primaryColor.withAlpha((255 * 0.4).toInt()),
+                          blurRadius: 16,
+                          spreadRadius: 4,
+                        ),
+                      ]
+                      : [
+                        BoxShadow(
+                          color: Colors.black.withAlpha((255 * 0.4).toInt()),
+                          blurRadius: 8,
+                          spreadRadius: 2,
+                        ),
+                      ],
+            ),
+            child: Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side:
+                    hasFocus
+                        ? BorderSide(color: _primaryColor, width: 3)
+                        : BorderSide.none,
+              ),
+              elevation: hasFocus ? 8 : 4,
+              color: _cardBackground,
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => _searchRecommendation(movie['title']),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: CachedNetworkImage(
+                        imageUrl: movie['cover'] ?? '',
+                        fit: BoxFit.cover,
+                        placeholder:
+                            (_, __) => Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation(
+                                  _primaryColor,
+                                ),
+                              ),
+                            ),
+                        errorWidget:
+                            (_, __, ___) => Center(
+                              child: Icon(
+                                Icons.broken_image,
+                                size: 48,
+                                color: _hintColor,
+                              ),
+                            ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(
+                        movie['title'] ?? '未知标题',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: _textColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -553,11 +705,12 @@ class _SearchPageState extends State<SearchPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _darkBackground,
-      body: FocusScope(
-        autofocus: true,
-        child: Column(children: [_buildSearchField(), _buildContent()]),
+      appBar: PreferredSize(
+        preferredSize: Size(double.infinity, 200),
+        child: _buildSearchField(),
       ),
+      backgroundColor: _darkBackground,
+      body: FocusScope(autofocus: true, child: _buildContent()),
     );
   }
 }
