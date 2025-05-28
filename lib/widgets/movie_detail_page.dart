@@ -13,7 +13,7 @@ class MovieDetailPage extends StatefulWidget {
 }
 
 class _MovieDetailPageState extends State<MovieDetailPage> {
-  List<Map<String, String>> _episodes = [];
+  final List<Map<String, String>> _episodes = [];
   final List<GlobalKey> _episodeKeys = [];
   final FocusNode _episodesFocusNode = FocusNode();
   final ScrollController _episodesScrollController = ScrollController();

@@ -30,36 +30,29 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  dio: ^5.8.0+1 # 网络请求
-  provider: ^6.1.1 # 状态管理
-  video_player: ^2.8.3 # 视频播放器
-  chewie: ^1.5.2 # 视频控制UI
-  cached_network_image: ^3.3.0 # 图片缓存
-  shared_preferences: ^2.2.2
-  flutter_secure_storage: ^8.0.0
-  google_fonts: ^6.1.0
-  wakelock_plus: ^1.3.2
-  package_info_plus: ^8.3.0
-  url_launcher: ^6.1.11
-  path_provider: ^2.1.5
-  permission_handler: ^12.0.0+1
-  open_file: ^3.5.10
-  android_intent_plus: ^5.3.0
+  dio: ^5.8.0+1 # HTTP客户端，用于网络请求
+  provider: ^6.1.1 # 状态管理，简化Widget树中的状态共享
+  video_player: ^2.8.3 # Flutter官方视频播放器插件，提供基础播放功能
+  chewie: ^1.5.2 # 视频播放器UI控件，基于video_player的增强界面
+  cached_network_image: ^3.3.0 # 网络图片缓存和加载库
+  shared_preferences: ^2.2.2 # 轻量级本地数据存储(键值对)
+  flutter_secure_storage: ^8.0.0 # 安全存储敏感数据(如token)
+  google_fonts: ^6.1.0 # 轻松使用Google Fonts中的字体
+  wakelock_plus: ^1.3.2 # 防止屏幕休眠(播放视频时保持亮屏)
+  package_info_plus: ^8.3.0 # 获取应用包信息(版本号等)
+  url_launcher: ^6.1.11 # 启动URL(打开网页、打电话等)
+  path_provider: ^2.1.5 # 获取设备文件系统路径
+  permission_handler: ^12.0.0+1 # 运行时权限请求和管理
+  open_file: ^3.5.10 # 打开本地文件(支持多种文件类型)
+  android_intent_plus: ^5.3.0 # Android平台Intent调用
 
-  # The following adds the Cupertino Icons font to your application.
-  # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
+  # Cupertino风格图标
+  cupertino_icons: ^1.0.8 # iOS风格图标集
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
-  # The "flutter_lints" package below contains a set of recommended lints to
-  # encourage good coding practices. The lint set provided by the package is
-  # activated in the `analysis_options.yaml` file located at the root of your
-  # package. See that file for information about deactivating specific lint
-  # rules and activating additional ones.
-  flutter_lints: ^5.0.0
+  flutter_lints: ^5.0.0 # Flutter代码静态分析规则
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

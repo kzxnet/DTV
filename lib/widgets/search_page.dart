@@ -90,9 +90,7 @@ class _SearchPageState extends State<SearchPage> {
         ),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 3),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         backgroundColor: const Color(0xFFB00020),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       ),
@@ -110,18 +108,20 @@ class _SearchPageState extends State<SearchPage> {
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(32),
-            border: _searchFocusNode.hasFocus
-                ? Border.all(color: _primaryColor, width: 3)
-                : null,
-            boxShadow: _searchFocusNode.hasFocus
-                ? [
-              BoxShadow(
-                color: _primaryColor.withOpacity(0.3),
-                blurRadius: 12,
-                spreadRadius: 2,
-              )
-            ]
-                : null,
+            border:
+                _searchFocusNode.hasFocus
+                    ? Border.all(color: _primaryColor, width: 3)
+                    : null,
+            boxShadow:
+                _searchFocusNode.hasFocus
+                    ? [
+                      BoxShadow(
+                        color: _primaryColor.withOpacity(0.3),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                      ),
+                    ]
+                    : null,
           ),
           child: Row(
             children: [
@@ -129,7 +129,7 @@ class _SearchPageState extends State<SearchPage> {
                 child: Padding(
                   padding: const EdgeInsets.only(left: 24),
                   child: TextField(
-                    focusNode: _searchFocusNode,  // 关键：给TextField传递FocusNode
+                    focusNode: _searchFocusNode, // 关键：给TextField传递FocusNode
                     controller: _searchController,
                     style: TextStyle(
                       fontSize: 24,
@@ -138,10 +138,7 @@ class _SearchPageState extends State<SearchPage> {
                     ),
                     decoration: InputDecoration(
                       hintText: '搜索电影、电视剧...',
-                      hintStyle: TextStyle(
-                        fontSize: 22,
-                        color: _hintColor,
-                      ),
+                      hintStyle: TextStyle(fontSize: 22, color: _hintColor),
                       border: InputBorder.none,
                     ),
                     onSubmitted: (value) {
@@ -177,21 +174,25 @@ class _SearchPageState extends State<SearchPage> {
             decoration: BoxDecoration(
               color: hasFocus ? _primaryColor : const Color(0xFF333333),
               borderRadius: BorderRadius.circular(24),
-              boxShadow: hasFocus
-                  ? [
-                BoxShadow(
-                  color: _primaryColor.withOpacity(0.5),
-                  blurRadius: 12,
-                  spreadRadius: 2,
-                )
-              ]
-                  : null,
+              boxShadow:
+                  hasFocus
+                      ? [
+                        BoxShadow(
+                          color: _primaryColor.withOpacity(0.5),
+                          blurRadius: 12,
+                          spreadRadius: 2,
+                        ),
+                      ]
+                      : null,
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(24),
               onTap: () => _searchMovies(_searchController.text.trim()),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
                 child: Row(
                   children: [
                     Icon(Icons.search, size: 32, color: Colors.white),
@@ -244,61 +245,62 @@ class _SearchPageState extends State<SearchPage> {
         child: Center(
           child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
-            child: _showSearchHint
-                ? Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.movie_creation,
-                  size: 120,
-                  color: _hintColor.withOpacity(0.3),
-                ),
-                const SizedBox(height: 32),
-                Text(
-                  '输入电影或电视剧名称',
-                  style: TextStyle(
-                    fontSize: 28,
-                    color: _hintColor,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '使用遥控器方向键导航，确认键选择',
-                  style: TextStyle(
-                    fontSize: 20,
-                    color: _hintColor.withOpacity(0.7),
-                  ),
-                ),
-              ],
-            )
-                : Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.search_off,
-                  size: 120,
-                  color: _hintColor.withOpacity(0.3),
-                ),
-                const SizedBox(height: 32),
-                Text(
-                  '没有找到相关内容',
-                  style: TextStyle(
-                    fontSize: 28,
-                    color: _hintColor,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '尝试其他关键词',
-                  style: TextStyle(
-                    fontSize: 20,
-                    color: _hintColor.withOpacity(0.7),
-                  ),
-                ),
-              ],
-            ),
+            child:
+                _showSearchHint
+                    ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.movie_creation,
+                          size: 120,
+                          color: _hintColor.withOpacity(0.3),
+                        ),
+                        const SizedBox(height: 32),
+                        Text(
+                          '输入电影或电视剧名称',
+                          style: TextStyle(
+                            fontSize: 28,
+                            color: _hintColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          '使用遥控器方向键导航，确认键选择',
+                          style: TextStyle(
+                            fontSize: 20,
+                            color: _hintColor.withOpacity(0.7),
+                          ),
+                        ),
+                      ],
+                    )
+                    : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.search_off,
+                          size: 120,
+                          color: _hintColor.withOpacity(0.3),
+                        ),
+                        const SizedBox(height: 32),
+                        Text(
+                          '没有找到相关内容',
+                          style: TextStyle(
+                            fontSize: 28,
+                            color: _hintColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          '尝试其他关键词',
+                          style: TextStyle(
+                            fontSize: 20,
+                            color: _hintColor.withOpacity(0.7),
+                          ),
+                        ),
+                      ],
+                    ),
           ),
         ),
       );
@@ -361,28 +363,30 @@ class _SearchPageState extends State<SearchPage> {
             margin: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              boxShadow: hasFocus
-                  ? [
-                BoxShadow(
-                  color: _primaryColor.withOpacity(0.4),
-                  blurRadius: 16,
-                  spreadRadius: 4,
-                )
-              ]
-                  : [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.4),
-                  blurRadius: 8,
-                  spreadRadius: 2,
-                )
-              ],
+              boxShadow:
+                  hasFocus
+                      ? [
+                        BoxShadow(
+                          color: _primaryColor.withOpacity(0.4),
+                          blurRadius: 16,
+                          spreadRadius: 4,
+                        ),
+                      ]
+                      : [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.4),
+                          blurRadius: 8,
+                          spreadRadius: 2,
+                        ),
+                      ],
             ),
             child: Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: hasFocus
-                    ? BorderSide(color: _primaryColor, width: 3)
-                    : BorderSide.none,
+                side:
+                    hasFocus
+                        ? BorderSide(color: _primaryColor, width: 3)
+                        : BorderSide.none,
               ),
               elevation: hasFocus ? 8 : 4,
               color: _cardBackground,
@@ -409,20 +413,23 @@ class _SearchPageState extends State<SearchPage> {
                           child: CachedNetworkImage(
                             imageUrl: movie['vod_pic'] ?? '',
                             fit: BoxFit.cover,
-                            placeholder: (_, __) => Center(
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor:
-                                AlwaysStoppedAnimation(_primaryColor),
-                              ),
-                            ),
-                            errorWidget: (_, __, ___) => Center(
-                              child: Icon(
-                                Icons.broken_image,
-                                size: 48,
-                                color: _hintColor,
-                              ),
-                            ),
+                            placeholder:
+                                (_, __) => Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation(
+                                      _primaryColor,
+                                    ),
+                                  ),
+                                ),
+                            errorWidget:
+                                (_, __, ___) => Center(
+                                  child: Icon(
+                                    Icons.broken_image,
+                                    size: 48,
+                                    color: _hintColor,
+                                  ),
+                                ),
                           ),
                         ),
                       ),
@@ -433,6 +440,7 @@ class _SearchPageState extends State<SearchPage> {
                       padding: const EdgeInsets.all(12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.max,
                         children: [
                           // Title
                           Text(
@@ -451,46 +459,59 @@ class _SearchPageState extends State<SearchPage> {
                           Row(
                             children: [
                               // Year
-                              if (movie['vod_year']?.toString().isNotEmpty ?? false)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: _primaryColor.withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    movie['vod_year'].toString(),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: _primaryColor,
+                              if (movie['vod_year']?.toString().isNotEmpty ??
+                                  false)
+                                Flexible(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: _primaryColor.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      movie['vod_year'].toString(),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: _primaryColor,
+                                      ),
                                     ),
                                   ),
                                 ),
 
                               // Type
-                              if (movie['type_name']?.toString().isNotEmpty ?? false) ...[
+                              if (movie['type_name']?.toString().isNotEmpty ??
+                                  false) ...[
                                 const SizedBox(width: 6),
-                                Text(
-                                  movie['type_name'],
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: _hintColor,
+                                Flexible(
+                                  child: Text(
+                                    movie['type_name'],
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: _hintColor,
+                                    ),
                                   ),
                                 ),
                               ],
 
                               // Source (vod_play_from)
-                              if (movie['vod_play_from']?.toString().isNotEmpty ?? false) ...[
+                              if (movie['vod_play_from']
+                                      ?.toString()
+                                      .isNotEmpty ??
+                                  false) ...[
                                 const SizedBox(width: 6),
-                                Text(
-                                  '| ${movie['vod_play_from']}',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: _hintColor,
+                                Flexible(
+                                  child: Text(
+                                    '| ${movie['vod_play_from']}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: _hintColor,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ],
@@ -523,9 +544,7 @@ class _SearchPageState extends State<SearchPage> {
   void _navigateToDetail(Map<String, dynamic> movie) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => MovieDetailPage(movie: movie),
-      ),
+      MaterialPageRoute(builder: (context) => MovieDetailPage(movie: movie)),
     );
   }
 
@@ -535,12 +554,7 @@ class _SearchPageState extends State<SearchPage> {
       backgroundColor: _darkBackground,
       body: FocusScope(
         autofocus: true,
-        child: Column(
-          children: [
-            _buildSearchField(),
-            _buildContent(),
-          ],
-        ),
+        child: Column(children: [_buildSearchField(), _buildContent()]),
       ),
     );
   }
