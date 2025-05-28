@@ -44,6 +44,8 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   Timer? _seekTimer;
   bool _isLongPressing = false;
   DateTime? _lastKeyEventTime;
+  // 新增：记录每一集的播放进度
+  final Map<int, Duration> _episodeProgress = {};
 
   _FullScreenPlayerPageState() : _currentEpisodeIndex = 0;
 
@@ -112,7 +114,17 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       await _controller.initialize();
       _setupWakelockListener();
 
+      // 新增：恢复当前剧集的播放进度
+      if (_episodeProgress.containsKey(_currentEpisodeIndex)) {
+        await _controller.seekTo(_episodeProgress[_currentEpisodeIndex]!);
+      }
+
       _controller.addListener(() {
+        // 新增：记录当前播放进度
+        if (_controller.value.isPlaying) {
+          _episodeProgress[_currentEpisodeIndex] = _controller.value.position;
+        }
+
         if (_controller.value.position >= _controller.value.duration &&
             !_controller.value.isLooping) {
           _playNextEpisode();
@@ -166,6 +178,11 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       return;
     }
 
+    // 新增：保存当前剧集的播放进度
+    if (_controller.value.isInitialized) {
+      _episodeProgress[_currentEpisodeIndex] = _controller.value.position;
+    }
+
     final url = widget.episodes[index]['url'];
     if (url == null || url.isEmpty) {
       setState(() {
@@ -194,7 +211,17 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       await _controller.initialize();
       _setupWakelockListener();
 
+      // 新增：恢复新剧集的播放进度
+      if (_episodeProgress.containsKey(_currentEpisodeIndex)) {
+        await _controller.seekTo(_episodeProgress[_currentEpisodeIndex]!);
+      }
+
       _controller.addListener(() {
+        // 新增：记录当前播放进度
+        if (_controller.value.isPlaying) {
+          _episodeProgress[_currentEpisodeIndex] = _controller.value.position;
+        }
+
         if (_controller.value.position >= _controller.value.duration &&
             !_controller.value.isLooping) {
           _playNextEpisode();
