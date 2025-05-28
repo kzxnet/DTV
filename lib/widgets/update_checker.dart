@@ -30,7 +30,7 @@ class AppUpdater {
       final releaseNotes = latestRelease['body'];
       final apkUrl = _findApkDownloadUrl(latestRelease['assets']);
 
-      if (_compareVersions(currentVersion, latestVersion) < 0) {
+      if (_compareVersions(currentVersion, latestVersion) < 0 && context.mounted) {
         _showUpdateDialog(
           context,
           releaseUrl,

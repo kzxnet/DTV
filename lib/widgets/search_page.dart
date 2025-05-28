@@ -116,7 +116,7 @@ class _SearchPageState extends State<SearchPage> {
                 _searchFocusNode.hasFocus
                     ? [
                       BoxShadow(
-                        color: _primaryColor.withOpacity(0.3),
+                        color: _primaryColor.withAlpha((255 * 0.3).toInt()),
                         blurRadius: 12,
                         spreadRadius: 2,
                       ),
@@ -178,7 +178,7 @@ class _SearchPageState extends State<SearchPage> {
                   hasFocus
                       ? [
                         BoxShadow(
-                          color: _primaryColor.withOpacity(0.5),
+                          color: _primaryColor.withAlpha(255 ~/ 2),
                           blurRadius: 12,
                           spreadRadius: 2,
                         ),
@@ -231,7 +231,7 @@ class _SearchPageState extends State<SearchPage> {
                 '正在搜索中...',
                 style: TextStyle(
                   fontSize: 24,
-                  color: _textColor.withOpacity(0.8),
+                  color: _textColor.withAlpha((255 * 0.8).toInt()),
                 ),
               ),
             ],
@@ -253,7 +253,7 @@ class _SearchPageState extends State<SearchPage> {
                         Icon(
                           Icons.movie_creation,
                           size: 120,
-                          color: _hintColor.withOpacity(0.3),
+                          color: _hintColor.withAlpha((255 * 0.3).toInt()),
                         ),
                         const SizedBox(height: 32),
                         Text(
@@ -269,7 +269,7 @@ class _SearchPageState extends State<SearchPage> {
                           '使用遥控器方向键导航，确认键选择',
                           style: TextStyle(
                             fontSize: 20,
-                            color: _hintColor.withOpacity(0.7),
+                            color: _hintColor.withAlpha((255 * 0.7).toInt()),
                           ),
                         ),
                       ],
@@ -280,7 +280,7 @@ class _SearchPageState extends State<SearchPage> {
                         Icon(
                           Icons.search_off,
                           size: 120,
-                          color: _hintColor.withOpacity(0.3),
+                          color: _hintColor.withAlpha((255 * 0.3).toInt()),
                         ),
                         const SizedBox(height: 32),
                         Text(
@@ -296,7 +296,7 @@ class _SearchPageState extends State<SearchPage> {
                           '尝试其他关键词',
                           style: TextStyle(
                             fontSize: 20,
-                            color: _hintColor.withOpacity(0.7),
+                            color: _hintColor.withAlpha((255 * 0.7).toInt()),
                           ),
                         ),
                       ],
@@ -317,7 +317,7 @@ class _SearchPageState extends State<SearchPage> {
                   '搜索结果 (${_movies.length})',
                   style: TextStyle(
                     fontSize: 22,
-                    color: _textColor.withOpacity(0.8),
+                    color: _textColor.withAlpha((255 * 0.8).toInt()),
                   ),
                 ),
               ],
@@ -367,14 +367,14 @@ class _SearchPageState extends State<SearchPage> {
                   hasFocus
                       ? [
                         BoxShadow(
-                          color: _primaryColor.withOpacity(0.4),
+                          color: _primaryColor.withAlpha((255 * 0.4).toInt()),
                           blurRadius: 16,
                           spreadRadius: 4,
                         ),
                       ]
                       : [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.4),
+                          color: Colors.black.withAlpha((255 * 0.4).toInt()),
                           blurRadius: 8,
                           spreadRadius: 2,
                         ),
@@ -468,7 +468,9 @@ class _SearchPageState extends State<SearchPage> {
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: _primaryColor.withOpacity(0.2),
+                                      color: _primaryColor.withAlpha(
+                                        (255 * 0.2).toInt(),
+                                      ),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(

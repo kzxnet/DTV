@@ -78,7 +78,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isDark = colorScheme.brightness == Brightness.dark;
+    // final isDark = colorScheme.brightness == Brightness.dark;
 
     return Scaffold(
       body: Focus(
@@ -114,7 +114,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            colorScheme.surface.withOpacity(0.8),
+                            colorScheme.surface.withAlpha((255 * 0.8).toInt()),
                             colorScheme.surface,
                           ],
                         ),
@@ -314,7 +314,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                                     ),
                                     backgroundColor: isFocused
                                         ? colorScheme.primaryContainer
-                                        : colorScheme.surfaceVariant,
+                                        : colorScheme.surfaceContainerHighest,
                                     foregroundColor: isFocused
                                         ? colorScheme.onPrimaryContainer
                                         : colorScheme.onSurfaceVariant,

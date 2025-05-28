@@ -18,6 +18,7 @@ class _AppWrapperState extends State<AppWrapper> {
 
   Future<void> _checkForUpdates() async {
     await Future.delayed(const Duration(seconds: 1));
+    if (!mounted) return;
     await AppUpdater.checkForUpdate(context);
   }
 
