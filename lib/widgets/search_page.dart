@@ -344,32 +344,34 @@ class _SearchPageState extends State<SearchPage> {
               ],
             ),
           )
-          : Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.search_off,
-                size: 120,
-                color: _hintColor.withAlpha((255 * 0.3).toInt()),
-              ),
-              const SizedBox(height: 32),
-              Text(
-                '没有找到相关内容',
-                style: TextStyle(
-                  fontSize: 28,
-                  color: _hintColor,
-                  fontWeight: FontWeight.w500,
+          : Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.search_off,
+                  size: 120,
+                  color: _hintColor.withAlpha((255 * 0.3).toInt()),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                '尝试其他关键词',
-                style: TextStyle(
-                  fontSize: 20,
-                  color: _hintColor.withAlpha((255 * 0.7).toInt()),
+                const SizedBox(height: 32),
+                Text(
+                  '没有找到相关内容',
+                  style: TextStyle(
+                    fontSize: 28,
+                    color: _hintColor,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 16),
+                Text(
+                  '尝试其他关键词',
+                  style: TextStyle(
+                    fontSize: 20,
+                    color: _hintColor.withAlpha((255 * 0.7).toInt()),
+                  ),
+                ),
+              ],
+            ),
           );
     }
 
@@ -470,8 +472,10 @@ class _SearchPageState extends State<SearchPage> {
                     Expanded(
                       child: CachedNetworkImage(
                         httpHeaders: {
-                          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                          'Accept': 'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                          'User-Agent':
+                              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                          'Accept':
+                              'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
                         },
                         imageUrl: movie['cover'] ?? '',
                         fit: BoxFit.cover,
@@ -726,18 +730,24 @@ class _SearchPageState extends State<SearchPage> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: _movies.isEmpty && _searchController.text.isEmpty,
+      canPop:
+          !_searchFocusNode.hasFocus &&
+          _searchController.text.isEmpty,
       onPopInvokedWithResult: (didPop, result) {
-        log('Pop invoked with result: $didPop, $result');
+        log(
+          'Pop invoked with result: $didPop, $result',
+        );
         if (!didPop) {
           _cancelToken.cancel();
-          if (_movies.isNotEmpty && _searchController.text.isNotEmpty) {
+          if (_searchFocusNode.hasFocus) {
+            _searchFocusNode.unfocus();
+          } else if (_searchController.text.isNotEmpty) {
             setState(() {
               _movies.clear();
               _searchController.clear();
             });
           } else {
-            Navigator.pop(context);
+            Navigator.maybePop(context);
           }
         }
       },
