@@ -51,7 +51,10 @@ class _SearchPageState extends State<SearchPage> {
           'page_limit': '100',
           'page_start': '0',
         },
-        cancelToken: _cancelToken.isCancelled ? _cancelToken = CancelToken() : _cancelToken,
+        cancelToken:
+            _cancelToken.isCancelled
+                ? _cancelToken = CancelToken()
+                : _cancelToken,
       );
 
       log('获取推荐: ${response.data}');
@@ -101,7 +104,10 @@ class _SearchPageState extends State<SearchPage> {
       final response = await _dio.get(
         'https://cms-api.aini.us.kg/api/search',
         queryParameters: {'wd': keyword, 'limit': 100},
-        cancelToken: _cancelToken.isCancelled ? _cancelToken = CancelToken() : _cancelToken,
+        cancelToken:
+            _cancelToken.isCancelled
+                ? _cancelToken = CancelToken()
+                : _cancelToken,
       );
 
       if (response.statusCode == 200 && response.data['code'] == 1) {
@@ -110,7 +116,7 @@ class _SearchPageState extends State<SearchPage> {
         });
       }
     } catch (e) {
-      if(e is DioException && e.type == DioExceptionType.cancel) return;
+      if (e is DioException && e.type == DioExceptionType.cancel) return;
       _showError('搜索失败: ${e.toString()}');
     } finally {
       if (mounted) {
@@ -169,7 +175,8 @@ class _SearchPageState extends State<SearchPage> {
                 child: Padding(
                   padding: const EdgeInsets.only(left: 24),
                   child: TextField(
-                    focusNode: _searchFocusNode, // 关键：给TextField传递FocusNode
+                    focusNode: _searchFocusNode,
+                    // 关键：给TextField传递FocusNode
                     controller: _searchController,
                     style: TextStyle(
                       fontSize: 24,
@@ -715,24 +722,31 @@ class _SearchPageState extends State<SearchPage> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false,
+      canPop: _movies.isEmpty && _searchController.text.isEmpty,
       onPopInvokedWithResult: (didPop, result) {
         log('Pop invoked with result: $didPop, $result');
         if (!didPop) {
           _cancelToken.cancel();
-          setState(() {
-            _movies.clear();
-            _searchController.clear();
-          });
+          if (_movies.isNotEmpty && _searchController.text.isNotEmpty) {
+            setState(() {
+              _movies.clear();
+              _searchController.clear();
+            });
+          } else {
+            Navigator.pop(context);
+          }
         }
       },
-      child: Scaffold(
-        appBar: PreferredSize(
-          preferredSize: Size(double.infinity, 200),
-          child: _buildSearchField(),
+      child: FocusScope(
+        autofocus: true,
+        child: Scaffold(
+          appBar: PreferredSize(
+            preferredSize: Size(double.infinity, 200),
+            child: _buildSearchField(),
+          ),
+          backgroundColor: _darkBackground,
+          body: _buildContent(),
         ),
-        backgroundColor: _darkBackground,
-        body: FocusScope(autofocus: true, child: _buildContent()),
       ),
     );
   }
