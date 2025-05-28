@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +16,7 @@ class SearchPage extends StatefulWidget {
 
 class _SearchPageState extends State<SearchPage> {
   final Dio _dio = Dio()..interceptors.add(LogInterceptor());
+  CancelToken _cancelToken = CancelToken();
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   List<dynamic> _movies = [];
@@ -48,7 +51,10 @@ class _SearchPageState extends State<SearchPage> {
           'page_limit': '100',
           'page_start': '0',
         },
+        cancelToken: _cancelToken.isCancelled ? _cancelToken = CancelToken() : _cancelToken,
       );
+
+      log('获取推荐: ${response.data}');
 
       if (response.statusCode == 200) {
         setState(() {
@@ -95,6 +101,7 @@ class _SearchPageState extends State<SearchPage> {
       final response = await _dio.get(
         'https://cms-api.aini.us.kg/api/search',
         queryParameters: {'wd': keyword, 'limit': 100},
+        cancelToken: _cancelToken.isCancelled ? _cancelToken = CancelToken() : _cancelToken,
       );
 
       if (response.statusCode == 200 && response.data['code'] == 1) {
@@ -398,6 +405,8 @@ class _SearchPageState extends State<SearchPage> {
 
   // 新增：推荐卡片组件
   Widget _buildRecommendationCard(Map<String, dynamic> movie) {
+    // log('${movie['cover']}');
+
     return Focus(
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
@@ -704,13 +713,26 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: Size(double.infinity, 200),
-        child: _buildSearchField(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        log('Pop invoked with result: $didPop, $result');
+        if (!didPop) {
+          _cancelToken.cancel();
+          setState(() {
+            _movies.clear();
+            _searchController.clear();
+          });
+        }
+      },
+      child: Scaffold(
+        appBar: PreferredSize(
+          preferredSize: Size(double.infinity, 200),
+          child: _buildSearchField(),
+        ),
+        backgroundColor: _darkBackground,
+        body: FocusScope(autofocus: true, child: _buildContent()),
       ),
-      backgroundColor: _darkBackground,
-      body: FocusScope(autofocus: true, child: _buildContent()),
     );
   }
 }
