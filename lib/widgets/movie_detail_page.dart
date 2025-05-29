@@ -32,11 +32,24 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
         _isEpisodesFocused = _episodesFocusNode.hasFocus;
       });
     });
+
+    _episodesScrollController.addListener(_handleScroll);
+  }
+
+  void _handleScroll() {
+    if (_episodesScrollController.hasClients) {
+      final scrollPosition = _episodesScrollController.position;
+      if (scrollPosition.isScrollingNotifier.value && _isEpisodesFocused) {
+        // Maintain focus during scroll
+        _episodesFocusNode.requestFocus();
+      }
+    }
   }
 
   @override
   void dispose() {
     _episodesFocusNode.dispose();
+    _episodesScrollController.removeListener(_handleScroll);
     _episodesScrollController.dispose();
     _mainContentFocusNode.dispose();
     super.dispose();
@@ -78,7 +91,6 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    // final isDark = colorScheme.brightness == Brightness.dark;
 
     return Scaffold(
       body: Focus(
@@ -239,110 +251,120 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                     const SizedBox(height: 12),
                     SizedBox(
                       height: 56,
-                      child: Focus(
-                        focusNode: _episodesFocusNode,
-                        autofocus: false,
-                        onKeyEvent: (node, event) {
-                          if (event is KeyDownEvent) {
-                            if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-                              if (_focusedIndex > 0) {
-                                setState(() {
-                                  _focusedIndex--;
-                                });
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                  final context = _episodeKeys[_focusedIndex].currentContext;
-                                  if (context != null) {
-                                    Scrollable.ensureVisible(context,
-                                        duration: const Duration(milliseconds: 300),
-                                        curve: Curves.easeInOut);
-                                  }
-                                });
+                      child: FocusTraversalGroup(
+                        policy: WidgetOrderTraversalPolicy(),
+                        child: Focus(
+                          focusNode: _episodesFocusNode,
+                          autofocus: false,
+                          onKeyEvent: (node, event) {
+                            if (event is KeyDownEvent) {
+                              if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+                                if (_focusedIndex > 0) {
+                                  setState(() {
+                                    _focusedIndex--;
+                                  });
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    final context = _episodeKeys[_focusedIndex].currentContext;
+                                    if (context != null) {
+                                      Scrollable.ensureVisible(context,
+                                          duration: const Duration(milliseconds: 300),
+                                          curve: Curves.easeInOut);
+                                    }
+                                  });
+                                  return KeyEventResult.handled;
+                                }
+                              } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+                                if (_focusedIndex < _episodes.length - 1) {
+                                  setState(() {
+                                    _focusedIndex++;
+                                  });
+                                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                                    final context = _episodeKeys[_focusedIndex].currentContext;
+                                    if (context != null) {
+                                      Scrollable.ensureVisible(context,
+                                          duration: const Duration(milliseconds: 300),
+                                          curve: Curves.easeInOut);
+                                    }
+                                  });
+                                  return KeyEventResult.handled;
+                                }
+                              } else if (event.logicalKey == LogicalKeyboardKey.select ||
+                                  event.logicalKey == LogicalKeyboardKey.enter) {
+                                _playEpisode(_focusedIndex);
+                                return KeyEventResult.handled;
+                              } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                                _mainContentFocusNode.requestFocus();
                                 return KeyEventResult.handled;
                               }
-                            } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-                              if (_focusedIndex < _episodes.length - 1) {
-                                setState(() {
-                                  _focusedIndex++;
-                                });
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
-                                  final context = _episodeKeys[_focusedIndex].currentContext;
-                                  if (context != null) {
-                                    Scrollable.ensureVisible(context,
-                                        duration: const Duration(milliseconds: 300),
-                                        curve: Curves.easeInOut);
-                                  }
-                                });
-                                return KeyEventResult.handled;
-                              }
-                            } else if (event.logicalKey == LogicalKeyboardKey.select ||
-                                event.logicalKey == LogicalKeyboardKey.enter) {
-                              _playEpisode(_focusedIndex);
-                              return KeyEventResult.handled;
-                            } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-                              _mainContentFocusNode.requestFocus();
-                              return KeyEventResult.handled;
                             }
-                          }
-                          return KeyEventResult.ignored;
-                        },
-                        child: ListView.builder(
-                          controller: _episodesScrollController,
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemCount: _episodes.length,
-                          itemBuilder: (context, index) {
-                            final isFocused = _isEpisodesFocused && _focusedIndex == index;
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 12.0),
-                              child: Focus(
-                                key: _episodeKeys[index],
-                                onFocusChange: (hasFocus) {
-                                  if (hasFocus) {
-                                    setState(() {
-                                      _focusedIndex = index;
-                                    });
-                                  }
-                                },
-                                child: FilledButton.tonal(
-                                  style: FilledButton.styleFrom(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 8,
-                                    ),
-                                    backgroundColor: isFocused
-                                        ? colorScheme.primaryContainer
-                                        : colorScheme.surfaceContainerHighest,
-                                    foregroundColor: isFocused
-                                        ? colorScheme.onPrimaryContainer
-                                        : colorScheme.onSurfaceVariant,
-                                    elevation: isFocused ? 4 : 0,
-                                    side: BorderSide(
-                                      color: isFocused
-                                          ? colorScheme.primary
-                                          : Colors.transparent,
-                                      width: isFocused ? 2 : 0,
-                                    ),
-                                  ),
-                                  onPressed: () => _playEpisode(index),
-                                  child: Text(
-                                    _episodes[index]['title']!,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyLarge!
-                                        .copyWith(
-                                      fontWeight: isFocused
-                                          ? FontWeight.bold
-                                          : FontWeight.normal,
-                                      fontSize: isFocused ? 18 : 16,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
+                            return KeyEventResult.ignored;
                           },
+                          child: ScrollConfiguration(
+                            behavior: ScrollBehavior().copyWith(
+                              scrollbars: true,
+                              overscroll: false,
+                              physics: const BouncingScrollPhysics(),
+                            ),
+                            child: ListView.builder(
+                              controller: _episodesScrollController,
+                              scrollDirection: Axis.horizontal,
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: _episodes.length,
+                              itemBuilder: (context, index) {
+                                final isFocused = _isEpisodesFocused && _focusedIndex == index;
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 12.0),
+                                  child: Focus(
+                                    key: _episodeKeys[index],
+                                    onFocusChange: (hasFocus) {
+                                      if (hasFocus) {
+                                        setState(() {
+                                          _focusedIndex = index;
+                                        });
+                                      }
+                                    },
+                                    child: FilledButton.tonal(
+                                      style: FilledButton.styleFrom(
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 8,
+                                        ),
+                                        backgroundColor: isFocused
+                                            ? colorScheme.primaryContainer
+                                            : colorScheme.surfaceContainerHighest,
+                                        foregroundColor: isFocused
+                                            ? colorScheme.onPrimaryContainer
+                                            : colorScheme.onSurfaceVariant,
+                                        elevation: isFocused ? 4 : 0,
+                                        side: BorderSide(
+                                          color: isFocused
+                                              ? colorScheme.primary
+                                              : Colors.transparent,
+                                          width: isFocused ? 2 : 0,
+                                        ),
+                                      ),
+                                      onPressed: () => _playEpisode(index),
+                                      child: Text(
+                                        _episodes[index]['title']!,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyLarge!
+                                            .copyWith(
+                                          fontWeight: isFocused
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                          fontSize: isFocused ? 18 : 16,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
                         ),
                       ),
                     ),
