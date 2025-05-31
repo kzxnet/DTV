@@ -1,14 +1,31 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hive/hive.dart';
+import 'package:libretv_app/services/api.dart';
 import 'package:libretv_app/widgets/app_wrapper.dart';
+import 'package:path_provider/path_provider.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
+
+  // 初始化Hive
+  final appDocumentDir = await getApplicationDocumentsDirectory();
+  Hive.init(appDocumentDir.path);
+  await Hive.openBox('sources');
+
+  // 启动Web服务
+  final server = await startServer();
+
+  runApp(MyApp(server: server));  // 传递server参数
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+
+  final HttpServer server;  // 新增server属性
+
+  const MyApp({super.key, required this.server});  // 更新构造函数
 
   @override
   Widget build(BuildContext context) {
