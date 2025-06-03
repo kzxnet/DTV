@@ -213,6 +213,10 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       return;
     }
 
+    // 重置控制器显示状态
+    setState(() => _controlsVisibility.value = true);
+    _startControlsAutoHideTimer();
+
     // 显示切换提示
     if (mounted) {
       setState(() {
