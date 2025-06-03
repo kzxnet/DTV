@@ -7,6 +7,7 @@ import 'package:hive/hive.dart';
 import 'package:libretv_app/services/api.dart';
 import 'package:libretv_app/widgets/app_wrapper.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +15,13 @@ void main() async {
   // 初始化Hive
   final appDocumentDir = await getApplicationDocumentsDirectory();
   Hive.init(appDocumentDir.path);
+
+
+  await Hive.deleteBoxFromDisk("sources");
+
+  await Hive.deleteBoxFromDisk("proxies");
+
+
   await Hive.openBox('sources');
   await Hive.openBox('proxies');
 
@@ -85,6 +93,9 @@ class MyApp extends StatelessWidget {
 }
 
 Future<void> _loadInitialConfig() async {
+
+  final uuid = Uuid();
+
   final sourcesBox = Hive.box('sources');
   final proxiesBox = Hive.box('proxies');
 
@@ -92,6 +103,7 @@ Future<void> _loadInitialConfig() async {
   if (sourcesBox.isEmpty || proxiesBox.isEmpty) {
     try {
       final dio = Dio();
+      print('开始加载配置文件...');
       final response = await dio.get(
         'https://ktv.aini.us.kg/config.json',
         options: Options(responseType: ResponseType.json),
@@ -99,24 +111,49 @@ Future<void> _loadInitialConfig() async {
 
       if (response.statusCode == 200) {
         final config = response.data;
+        print('成功获取配置文件，共${config['sources']?.length ?? 0}个源');
 
         // 存储源数据
+        int savedCount = 0;
         for (final source in config['sources']) {
-          final id = DateTime.now().millisecondsSinceEpoch.toString();
-          sourcesBox.put(id, {
-            ...source,
-            'id': id,
-            'createdAt': DateTime.now().toIso8601String(),
-            'updatedAt': DateTime.now().toIso8601String(),
-          });
+          try {
+            final id = uuid.v4();
+            sourcesBox.put(id, {
+              ...source,
+              'id': id,
+              'createdAt': DateTime.now().toIso8601String(),
+              'updatedAt': DateTime.now().toIso8601String(),
+            });
+            savedCount++;
+            print('成功保存源: ${source['name']}');
+          } catch (e) {
+            print('保存源${source['name']}失败: $e');
+          }
         }
+        print('实际保存源数量: $savedCount');
 
         // 存储代理数据
-        final pid = DateTime.now().millisecondsSinceEpoch.toString();
-        proxiesBox.put(pid,{"id":pid,"url":config['proxy']['url'],"name": config['proxy']['name'],"enabled":config['proxy']['enabled'],"createdAt":DateTime.now().toIso8601String(),"updatedAt":DateTime.now().toIso8601String()});
+        try {
+          final pid = uuid.v4();
+          proxiesBox.put(pid, {
+            "id": pid,
+            "url": config['proxy']['url'],
+            "name": config['proxy']['name'],
+            "enabled": config['proxy']['enabled'],
+            "createdAt": DateTime.now().toIso8601String(),
+            "updatedAt": DateTime.now().toIso8601String()
+          });
+          print('成功保存代理配置');
+        } catch (e) {
+          print('保存代理配置失败: $e');
+        }
+      } else {
+        print('获取配置文件失败，状态码: ${response.statusCode}');
       }
     } catch (e) {
       print('加载初始配置失败: $e');
     }
+  } else {
+    print('已有配置，跳过初始化');
   }
 }

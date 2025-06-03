@@ -11,6 +11,7 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart' as shelf_router;  // Add prefix for shelf_router
 import 'package:shelf_cors_headers/shelf_cors_headers.dart';
 import 'package:shelf_static/shelf_static.dart';
+import 'package:uuid/uuid.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,7 +58,7 @@ Future<Directory> _copyAssetsToDocuments() async {
   return webDir;
 }
 
-Future<HttpServer> startServer({int port = 8080}) async {
+Future<HttpServer> startServer({int port = 8023}) async {
 
   final webDir = await _copyAssetsToDocuments();
 
@@ -268,7 +269,7 @@ Future<Response> _handleAddSource(Request request) async {
     }
 
     final source = Source(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: Uuid().v4(),
       name: data['name'].trim(),
       url: apiUrl,
       weight: data['weight'] != null ? int.parse(data['weight'].toString()) : 5,
@@ -333,7 +334,7 @@ Future<Response> _handleAddProxy(Request request) async {
     }
 
     final proxy = Proxy(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: Uuid().v4(),
       url: url,
       name:data['name']
     );

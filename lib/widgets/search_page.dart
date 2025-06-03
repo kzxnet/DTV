@@ -102,7 +102,7 @@ class _SearchPageState extends State<SearchPage> {
 
     try {
       final response = await _dio.get(
-        'http://localhost:8080/api/search',
+        'http://localhost:8023/api/search',
         queryParameters: {'wd': keyword, 'limit': 100},
         cancelToken:
         _cancelToken.isCancelled
