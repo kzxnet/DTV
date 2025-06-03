@@ -213,6 +213,27 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       return;
     }
 
+    // 显示切换提示
+    if (mounted) {
+      setState(() {
+        _controlsVisibility.value = true;
+        _errorMessage = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '正在加载: ${widget.episodes[index]['title'] ?? '第${index + 1}集'}',
+            style: const TextStyle(color: Colors.white),
+          ),
+          duration: const Duration(seconds: 2),
+          backgroundColor: Colors.black54,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.only(bottom: 100),
+        ),
+      );
+    }
+
+    // 保存当前剧集的播放进度
     if (_controller.value.isInitialized) {
       _episodeProgress[_currentEpisodeIndex] = _controller.value.position;
     }
@@ -226,60 +247,47 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       return;
     }
 
-    final oldController = _controller;
-    final oldChewieController = _chewieController;
+    try {
+      await _controller.pause();
+      await _controller.dispose();
+      _chewieController?.dispose();
+    } catch (e) {
+      debugPrint('释放旧控制器错误: $e');
+    }
+
+    setState(() {
+      _currentEpisodeIndex = index;
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     try {
-      final newController = VideoPlayerController.networkUrl(Uri.parse(url));
-      await newController.initialize();
+      _controller = VideoPlayerController.networkUrl(Uri.parse(url));
+      await _controller.initialize();
+      _setupWakelockListener();
 
-      if (_episodeProgress.containsKey(index)) {
-        await newController.seekTo(_episodeProgress[index]!);
+      // 恢复新剧集的播放进度
+      if (_episodeProgress.containsKey(_currentEpisodeIndex)) {
+        await _controller.seekTo(_episodeProgress[_currentEpisodeIndex]!);
       }
 
-      final newChewieController = ChewieController(
-        videoPlayerController: newController,
-        autoPlay: true,
-        looping: false,
-        allowFullScreen: false,
-        allowedScreenSleep: false,
-        showControls: false,
-        draggableProgressBar: false,
-        showControlsOnInitialize: false,
-        showOptions: false,
-        allowPlaybackSpeedChanging: false,
-        useRootNavigator: false,
-        materialProgressColors: ChewieProgressColors(
-          playedColor: const Color(0xFF0066FF),
-          handleColor: const Color(0xFF0066FF),
-          backgroundColor: Colors.grey,
-          bufferedColor: Colors.grey[300]!,
-        ),
-        errorBuilder: (context, errorMessage) {
-          return Center(
-            child: Text(
-              errorMessage,
-              style: const TextStyle(color: Colors.white, fontSize: 20),
-            ),
-          );
-        },
-      );
+      _controller.addListener(() {
+        // 记录当前播放进度
+        if (_controller.value.isPlaying) {
+          _episodeProgress[_currentEpisodeIndex] = _controller.value.position;
+        }
 
-      if (mounted) {
-        setState(() {
-          _controller = newController;
-          _chewieController = newChewieController;
-          _currentEpisodeIndex = index;
-          _isLoading = false;
-        });
-        _preloadNextEpisode();
-      }
-
-      Future.microtask(() {
-        oldController.dispose();
-        oldChewieController?.dispose();
+        if (_controller.value.position >= _controller.value.duration &&
+            !_controller.value.isLooping) {
+          _playNextEpisode();
+        }
       });
 
+      _chewieController = _chewieController!.copyWith(
+        videoPlayerController: _controller,
+      );
+
+      if (mounted) setState(() => _isLoading = false);
     } catch (e) {
       if (mounted) {
         setState(() {
