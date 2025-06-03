@@ -52,9 +52,9 @@ class _SearchPageState extends State<SearchPage> {
           'page_start': '0',
         },
         cancelToken:
-            _cancelToken.isCancelled
-                ? _cancelToken = CancelToken()
-                : _cancelToken,
+        _cancelToken.isCancelled
+            ? _cancelToken = CancelToken()
+            : _cancelToken,
       );
 
       log('获取推荐: ${response.data}');
@@ -101,84 +101,20 @@ class _SearchPageState extends State<SearchPage> {
     });
 
     try {
-      // 1. 先获取代理列表
-      final proxyResponse = await _dio.get(
-        'http://localhost:8080/api/proxies',
-        cancelToken: _cancelToken.isCancelled ? _cancelToken = CancelToken() : _cancelToken,
+      final response = await _dio.get(
+        'http://localhost:8080/api/search',
+        queryParameters: {'wd': keyword, 'limit': 100},
+        cancelToken:
+        _cancelToken.isCancelled
+            ? _cancelToken = CancelToken()
+            : _cancelToken,
       );
 
-      List<String> proxies = [];
-      if (proxyResponse.statusCode == 200) {
-        final proxyList = proxyResponse.data as List;
-        proxies = proxyList
-            .where((proxy) => proxy['enabled'] == true)
-            .map((proxy) => proxy['url'].toString())
-            .toList();
+      if (response.statusCode == 200 && response.data['code'] == 1) {
+        setState(() {
+          _movies = response.data['list'] ?? [];
+        });
       }
-
-      // 2. 获取源列表
-      final sourcesResponse = await _dio.get(
-        'http://localhost:8080/api/sources',
-        cancelToken: _cancelToken.isCancelled ? _cancelToken = CancelToken() : _cancelToken,
-      );
-
-      if (sourcesResponse.statusCode != 200) {
-        throw Exception('获取源列表失败');
-      }
-
-      final sources = sourcesResponse.data as List;
-      final List<Future<Response>> requests = [];
-
-      // 3. 为每个源创建请求
-      for (final source in sources) {
-        if (source['disabled'] == true) continue;
-
-        final url = '${source['url']}/api.php/provide/vod/';
-        final queryParams = {'wd': keyword, 'limit': 100};
-
-        // 如果有代理，为每个代理创建一个请求
-        if (proxies.isNotEmpty) {
-          for (final proxy in proxies) {
-            requests.add(_dio.get(
-              '$proxy$url',
-              queryParameters: queryParams,
-              cancelToken: _cancelToken.isCancelled ? _cancelToken = CancelToken() : _cancelToken,
-            ));
-          }
-        } else {
-          // 没有代理则直接请求源
-          requests.add(_dio.get(
-            url,
-            queryParameters: queryParams,
-            cancelToken: _cancelToken.isCancelled ? _cancelToken = CancelToken() : _cancelToken,
-          ));
-        }
-      }
-
-      // 4. 并行执行所有请求
-      final responses = await Future.wait(requests);
-
-      // 5. 处理响应结果
-      final List<dynamic> allMovies = [];
-      for (final response in responses) {
-        if (response.statusCode == 200 && response.data['code'] == 1) {
-          allMovies.addAll(response.data['list'] ?? []);
-        }
-      }
-
-      // 6. 去重并更新UI
-      final uniqueMovies = allMovies.fold<Map<String, dynamic>>({}, (map, movie) {
-        final key = movie['vod_name'];
-        if (!map.containsKey(key)) {
-          map[key] = movie;
-        }
-        return map;
-      }).values.toList();
-
-      setState(() {
-        _movies = uniqueMovies;
-      });
-
     } catch (e) {
       if (e is DioException && e.type == DioExceptionType.cancel) return;
       _showError('搜索失败: ${e.toString()}');
@@ -219,19 +155,19 @@ class _SearchPageState extends State<SearchPage> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(32),
             border:
-                _searchFocusNode.hasFocus
-                    ? Border.all(color: _primaryColor, width: 3)
-                    : null,
+            _searchFocusNode.hasFocus
+                ? Border.all(color: _primaryColor, width: 3)
+                : null,
             boxShadow:
-                _searchFocusNode.hasFocus
-                    ? [
-                      BoxShadow(
-                        color: _primaryColor.withAlpha((255 * 0.3).toInt()),
-                        blurRadius: 12,
-                        spreadRadius: 2,
-                      ),
-                    ]
-                    : null,
+            _searchFocusNode.hasFocus
+                ? [
+              BoxShadow(
+                color: _primaryColor.withAlpha((255 * 0.3).toInt()),
+                blurRadius: 12,
+                spreadRadius: 2,
+              ),
+            ]
+                : null,
           ),
           child: Row(
             children: [
@@ -286,15 +222,15 @@ class _SearchPageState extends State<SearchPage> {
               color: hasFocus ? _primaryColor : const Color(0xFF333333),
               borderRadius: BorderRadius.circular(24),
               boxShadow:
-                  hasFocus
-                      ? [
-                        BoxShadow(
-                          color: _primaryColor.withAlpha(255 ~/ 2),
-                          blurRadius: 12,
-                          spreadRadius: 2,
-                        ),
-                      ]
-                      : null,
+              hasFocus
+                  ? [
+                BoxShadow(
+                  color: _primaryColor.withAlpha(255 ~/ 2),
+                  blurRadius: 12,
+                  spreadRadius: 2,
+                ),
+              ]
+                  : null,
             ),
             child: InkWell(
               borderRadius: BorderRadius.circular(24),
@@ -352,91 +288,91 @@ class _SearchPageState extends State<SearchPage> {
     if (_movies.isEmpty) {
       return _showSearchHint
           ? SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.movie_creation,
-                  size: 120,
-                  color: _hintColor.withAlpha((255 * 0.3).toInt()),
-                ),
-                const SizedBox(height: 32),
-                Text(
-                  '输入电影或电视剧名称',
-                  style: TextStyle(
-                    fontSize: 28,
-                    color: _hintColor,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '使用遥控器方向键导航，确认键选择',
-                  style: TextStyle(
-                    fontSize: 20,
-                    color: _hintColor.withAlpha((255 * 0.7).toInt()),
-                  ),
-                ),
-                const SizedBox(height: 32),
-                // 新增：推荐列表标题
-                Text(
-                  '热门推荐',
-                  style: TextStyle(
-                    fontSize: 24,
-                    color: _textColor,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // 新增：推荐列表
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 48),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    childAspectRatio: 0.7,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                  ),
-                  itemCount: _recommendations.length,
-                  itemBuilder: (context, index) {
-                    final movie = _recommendations[index];
-                    return _buildRecommendationCard(movie);
-                  },
-                ),
-              ],
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.movie_creation,
+              size: 120,
+              color: _hintColor.withAlpha((255 * 0.3).toInt()),
             ),
-          )
+            const SizedBox(height: 32),
+            Text(
+              '输入电影或电视剧名称',
+              style: TextStyle(
+                fontSize: 28,
+                color: _hintColor,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '使用遥控器方向键导航，确认键选择',
+              style: TextStyle(
+                fontSize: 20,
+                color: _hintColor.withAlpha((255 * 0.7).toInt()),
+              ),
+            ),
+            const SizedBox(height: 32),
+            // 新增：推荐列表标题
+            Text(
+              '热门推荐',
+              style: TextStyle(
+                fontSize: 24,
+                color: _textColor,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            // 新增：推荐列表
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 48),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                childAspectRatio: 0.7,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+              ),
+              itemCount: _recommendations.length,
+              itemBuilder: (context, index) {
+                final movie = _recommendations[index];
+                return _buildRecommendationCard(movie);
+              },
+            ),
+          ],
+        ),
+      )
           : Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.search_off,
-                  size: 120,
-                  color: _hintColor.withAlpha((255 * 0.3).toInt()),
-                ),
-                const SizedBox(height: 32),
-                Text(
-                  '没有找到相关内容',
-                  style: TextStyle(
-                    fontSize: 28,
-                    color: _hintColor,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  '尝试其他关键词',
-                  style: TextStyle(
-                    fontSize: 20,
-                    color: _hintColor.withAlpha((255 * 0.7).toInt()),
-                  ),
-                ),
-              ],
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search_off,
+              size: 120,
+              color: _hintColor.withAlpha((255 * 0.3).toInt()),
             ),
-          );
+            const SizedBox(height: 32),
+            Text(
+              '没有找到相关内容',
+              style: TextStyle(
+                fontSize: 28,
+                color: _hintColor,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '尝试其他关键词',
+              style: TextStyle(
+                fontSize: 20,
+                color: _hintColor.withAlpha((255 * 0.7).toInt()),
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     return SingleChildScrollView(
@@ -500,29 +436,29 @@ class _SearchPageState extends State<SearchPage> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               boxShadow:
-                  hasFocus
-                      ? [
-                        BoxShadow(
-                          color: _primaryColor.withAlpha((255 * 0.4).toInt()),
-                          blurRadius: 16,
-                          spreadRadius: 4,
-                        ),
-                      ]
-                      : [
-                        BoxShadow(
-                          color: Colors.black.withAlpha((255 * 0.4).toInt()),
-                          blurRadius: 8,
-                          spreadRadius: 2,
-                        ),
-                      ],
+              hasFocus
+                  ? [
+                BoxShadow(
+                  color: _primaryColor.withAlpha((255 * 0.4).toInt()),
+                  blurRadius: 16,
+                  spreadRadius: 4,
+                ),
+              ]
+                  : [
+                BoxShadow(
+                  color: Colors.black.withAlpha((255 * 0.4).toInt()),
+                  blurRadius: 8,
+                  spreadRadius: 2,
+                ),
+              ],
             ),
             child: Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
                 side:
-                    hasFocus
-                        ? BorderSide(color: _primaryColor, width: 3)
-                        : BorderSide.none,
+                hasFocus
+                    ? BorderSide(color: _primaryColor, width: 3)
+                    : BorderSide.none,
               ),
               elevation: hasFocus ? 8 : 4,
               color: _cardBackground,
@@ -537,29 +473,29 @@ class _SearchPageState extends State<SearchPage> {
                       child: CachedNetworkImage(
                         httpHeaders: {
                           'User-Agent':
-                              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                           'Accept':
-                              'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                          'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
                         },
                         imageUrl: movie['cover'] ?? '',
                         fit: BoxFit.cover,
                         placeholder:
                             (_, __) => Center(
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation(
-                                  _primaryColor,
-                                ),
-                              ),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(
+                              _primaryColor,
                             ),
+                          ),
+                        ),
                         errorWidget:
                             (_, __, ___) => Center(
-                              child: Icon(
-                                Icons.broken_image,
-                                size: 48,
-                                color: _hintColor,
-                              ),
-                            ),
+                          child: Icon(
+                            Icons.broken_image,
+                            size: 48,
+                            color: _hintColor,
+                          ),
+                        ),
                       ),
                     ),
                     Padding(
@@ -605,29 +541,29 @@ class _SearchPageState extends State<SearchPage> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               boxShadow:
-                  hasFocus
-                      ? [
-                        BoxShadow(
-                          color: _primaryColor.withAlpha((255 * 0.4).toInt()),
-                          blurRadius: 16,
-                          spreadRadius: 4,
-                        ),
-                      ]
-                      : [
-                        BoxShadow(
-                          color: Colors.black.withAlpha((255 * 0.4).toInt()),
-                          blurRadius: 8,
-                          spreadRadius: 2,
-                        ),
-                      ],
+              hasFocus
+                  ? [
+                BoxShadow(
+                  color: _primaryColor.withAlpha((255 * 0.4).toInt()),
+                  blurRadius: 16,
+                  spreadRadius: 4,
+                ),
+              ]
+                  : [
+                BoxShadow(
+                  color: Colors.black.withAlpha((255 * 0.4).toInt()),
+                  blurRadius: 8,
+                  spreadRadius: 2,
+                ),
+              ],
             ),
             child: Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
                 side:
-                    hasFocus
-                        ? BorderSide(color: _primaryColor, width: 3)
-                        : BorderSide.none,
+                hasFocus
+                    ? BorderSide(color: _primaryColor, width: 3)
+                    : BorderSide.none,
               ),
               elevation: hasFocus ? 8 : 4,
               color: _cardBackground,
@@ -656,21 +592,21 @@ class _SearchPageState extends State<SearchPage> {
                             fit: BoxFit.cover,
                             placeholder:
                                 (_, __) => Center(
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation(
-                                      _primaryColor,
-                                    ),
-                                  ),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation(
+                                  _primaryColor,
                                 ),
+                              ),
+                            ),
                             errorWidget:
                                 (_, __, ___) => Center(
-                                  child: Icon(
-                                    Icons.broken_image,
-                                    size: 48,
-                                    color: _hintColor,
-                                  ),
-                                ),
+                              child: Icon(
+                                Icons.broken_image,
+                                size: 48,
+                                color: _hintColor,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -741,8 +677,8 @@ class _SearchPageState extends State<SearchPage> {
 
                               // Source (vod_play_from)
                               if (movie['vod_play_from']
-                                      ?.toString()
-                                      .isNotEmpty ??
+                                  ?.toString()
+                                  .isNotEmpty ??
                                   false) ...[
                                 const SizedBox(width: 6),
                                 Flexible(
@@ -795,7 +731,7 @@ class _SearchPageState extends State<SearchPage> {
   Widget build(BuildContext context) {
     return PopScope(
       canPop:
-          !_searchFocusNode.hasFocus &&
+      !_searchFocusNode.hasFocus &&
           _searchController.text.isEmpty,
       onPopInvokedWithResult: (didPop, result) {
         log(

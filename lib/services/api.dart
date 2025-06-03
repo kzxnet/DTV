@@ -396,7 +396,6 @@ Future<Response> _handleSearchRequest(Request request) async {
 
   try {
     final sources = await SourceStorage.getAllSources();
-
     final activeSources = sources.where((s) => !s.disabled).toList();
 
     if (activeSources.isEmpty) {
@@ -407,10 +406,21 @@ Future<Response> _handleSearchRequest(Request request) async {
       });
     }
 
+    // 获取第一条启用的代理
+    final proxyBox = Hive.box(SourceStorage._proxyBoxName);
+    final proxyList = proxyBox.values.toList();
+    final activeProxy = proxyList.firstWhere(
+          (proxy) => proxy['enabled'] == true,
+      orElse: () => null,
+    );
+
+
     // 并行请求所有源
     final results = await Future.wait(
       activeSources.map((source) async {
-        final uri = Uri.parse(source.url);
+        // 如果有启用代理，则使用代理URL
+        final baseUrl = activeProxy != null ? '${activeProxy['url']}/${source.url}' : source.url;
+        final uri = Uri.parse(baseUrl);
         final queryParams = {
           'ac': 'videolist',
           'wd': wd,
@@ -418,13 +428,11 @@ Future<Response> _handleSearchRequest(Request request) async {
         final url = uri.replace(queryParameters: queryParams);
 
         try {
-
           final response = await get(url, timeout: const Duration(seconds: 5));
 
-          if (response['statusCode'] == 200) {  // Changed from response.statusCode to response['statusCode']
-            return jsonDecode(response['body']);  // Changed from response.body to response['body']
+          if (response['statusCode'] == 200) {
+            return jsonDecode(response['body']);
           }
-
           return null;
         } catch (e) {
           print('请求源 ${source.url} 失败: $e');
