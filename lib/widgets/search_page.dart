@@ -1,9 +1,12 @@
 import 'dart:developer';
+import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:network_info_plus/network_info_plus.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import 'movie_detail_page.dart';
 
@@ -202,6 +205,8 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
+  // ... existing code ...
+
   Widget _buildSearchButton() {
     return Focus(
       onKeyEvent: (node, event) {
@@ -215,52 +220,166 @@ class _SearchPageState extends State<SearchPage> {
       child: Builder(
         builder: (context) {
           final hasFocus = Focus.of(context).hasFocus;
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            margin: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: hasFocus ? _primaryColor : const Color(0xFF333333),
-              borderRadius: BorderRadius.circular(24),
-              boxShadow:
-              hasFocus
-                  ? [
-                BoxShadow(
-                  color: _primaryColor.withAlpha(255 ~/ 2),
-                  blurRadius: 12,
-                  spreadRadius: 2,
-                ),
-              ]
-                  : null,
-            ),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(24),
-              onTap: () => _searchMovies(_searchController.text.trim()),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 16,
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.search, size: 32, color: Colors.white),
-                    const SizedBox(width: 8),
-                    Text(
-                      '搜索',
-                      style: TextStyle(
-                        fontSize: 22,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
+          return Row(
+            children: [
+              // 搜索按钮
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: hasFocus ? _primaryColor : const Color(0xFF333333),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: hasFocus
+                      ? [
+                    BoxShadow(
+                      color: _primaryColor.withAlpha(255 ~/ 2),
+                      blurRadius: 12,
+                      spreadRadius: 2,
                     ),
-                  ],
+                  ]
+                      : null,
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: () => _searchMovies(_searchController.text.trim()),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.search, size: 32, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Text(
+                          '搜索',
+                          style: TextStyle(
+                            fontSize: 22,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
+              // 新增管理按钮
+              const SizedBox(width: 8),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: hasFocus ? _primaryColor : const Color(0xFF333333),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: hasFocus
+                      ? [
+                    BoxShadow(
+                      color: _primaryColor.withAlpha(255 ~/ 2),
+                      blurRadius: 12,
+                      spreadRadius: 2,
+                    ),
+                  ]
+                      : null,
+                ),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: () => _showQRCodeDialog(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.settings, size: 32, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Text(
+                          '管理',
+                          style: TextStyle(
+                            fontSize: 22,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),
     );
   }
+
+  final NetworkInfo _networkInfo = NetworkInfo(); // 添加这行
+
+  // 新增：获取本地IP地址
+  Future<String> _getLocalIp() async {
+    try {
+      final interfaces = await NetworkInterface.list();
+      for (var interface in interfaces) {
+        for (var addr in interface.addresses) {
+          if (!addr.isLoopback && addr.type == InternetAddressType.IPv4) {
+            return addr.address;
+          }
+        }
+      }
+      return '127.0.0.1';
+    } catch (e) {
+      debugPrint('获取IP失败: $e');
+      return '127.0.0.1';
+    }
+  }
+
+// 新增：显示二维码对话框
+  void _showQRCodeDialog() async {
+    final ip = await _getLocalIp();
+    final url = 'http://$ip:8023';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: _darkBackground,
+        title: Text(
+          '扫描二维码管理',
+          style: TextStyle(color: _textColor),
+        ),
+        content: Container(
+          width: 300,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              QrImageView(
+                data: url,
+                version: QrVersions.auto,
+                size: 200.0,
+                backgroundColor: Colors.white,
+              ),
+              SizedBox(height: 16),
+              Text(
+                url,
+                style: TextStyle(color: _textColor),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              '关闭',
+              style: TextStyle(color: _primaryColor),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+// ... existing code ...
 
   Widget _buildContent() {
     if (_isLoading) {
