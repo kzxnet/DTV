@@ -101,20 +101,84 @@ class _SearchPageState extends State<SearchPage> {
     });
 
     try {
-      final response = await _dio.get(
-        'http://localhost:8080/api/search',
-        queryParameters: {'wd': keyword, 'limit': 100},
-        cancelToken:
-            _cancelToken.isCancelled
-                ? _cancelToken = CancelToken()
-                : _cancelToken,
+      // 1. 先获取代理列表
+      final proxyResponse = await _dio.get(
+        'http://localhost:8080/api/proxies',
+        cancelToken: _cancelToken.isCancelled ? _cancelToken = CancelToken() : _cancelToken,
       );
 
-      if (response.statusCode == 200 && response.data['code'] == 1) {
-        setState(() {
-          _movies = response.data['list'] ?? [];
-        });
+      List<String> proxies = [];
+      if (proxyResponse.statusCode == 200) {
+        final proxyList = proxyResponse.data as List;
+        proxies = proxyList
+            .where((proxy) => proxy['enabled'] == true)
+            .map((proxy) => proxy['url'].toString())
+            .toList();
       }
+
+      // 2. 获取源列表
+      final sourcesResponse = await _dio.get(
+        'http://localhost:8080/api/sources',
+        cancelToken: _cancelToken.isCancelled ? _cancelToken = CancelToken() : _cancelToken,
+      );
+
+      if (sourcesResponse.statusCode != 200) {
+        throw Exception('获取源列表失败');
+      }
+
+      final sources = sourcesResponse.data as List;
+      final List<Future<Response>> requests = [];
+
+      // 3. 为每个源创建请求
+      for (final source in sources) {
+        if (source['disabled'] == true) continue;
+
+        final url = '${source['url']}/api.php/provide/vod/';
+        final queryParams = {'wd': keyword, 'limit': 100};
+
+        // 如果有代理，为每个代理创建一个请求
+        if (proxies.isNotEmpty) {
+          for (final proxy in proxies) {
+            requests.add(_dio.get(
+              '$proxy$url',
+              queryParameters: queryParams,
+              cancelToken: _cancelToken.isCancelled ? _cancelToken = CancelToken() : _cancelToken,
+            ));
+          }
+        } else {
+          // 没有代理则直接请求源
+          requests.add(_dio.get(
+            url,
+            queryParameters: queryParams,
+            cancelToken: _cancelToken.isCancelled ? _cancelToken = CancelToken() : _cancelToken,
+          ));
+        }
+      }
+
+      // 4. 并行执行所有请求
+      final responses = await Future.wait(requests);
+
+      // 5. 处理响应结果
+      final List<dynamic> allMovies = [];
+      for (final response in responses) {
+        if (response.statusCode == 200 && response.data['code'] == 1) {
+          allMovies.addAll(response.data['list'] ?? []);
+        }
+      }
+
+      // 6. 去重并更新UI
+      final uniqueMovies = allMovies.fold<Map<String, dynamic>>({}, (map, movie) {
+        final key = movie['vod_name'];
+        if (!map.containsKey(key)) {
+          map[key] = movie;
+        }
+        return map;
+      }).values.toList();
+
+      setState(() {
+        _movies = uniqueMovies;
+      });
+
     } catch (e) {
       if (e is DioException && e.type == DioExceptionType.cancel) return;
       _showError('搜索失败: ${e.toString()}');
