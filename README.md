@@ -87,6 +87,19 @@ LibreTV 提供 Web 管理界面用于管理视频源和代理设置：
 
 ---
 
+---
+
+## 📸 应用截图
+
+<div align="center">
+  <img src="screenshots/home.png" width="400" alt="主界面截图">
+  <img src="screenshots/search.png" width="400" alt="搜索界面截图">
+  <img src="screenshots/player.png" width="400" alt="播放界面截图">
+  <img src="screenshots/detail.png" width="400" alt="详情界面截图">
+  <img src="screenshots/admin.png" width="400" alt="管理界面截图">
+</div>
+
+
 ## 📜 开源协议 (MIT License)
 
 ```text
