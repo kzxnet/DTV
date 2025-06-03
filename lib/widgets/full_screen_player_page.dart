@@ -46,9 +46,9 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   DateTime? _lastKeyEventTime;
   final Map<int, Duration> _episodeProgress = {};
   Duration _currentSeekSpeed = const Duration(seconds: 10);
-  final Duration _minSeekSpeed = const Duration(seconds: 5);
-  final Duration _maxSeekSpeed = const Duration(seconds: 30);
-  final Duration _speedIncrement = const Duration(seconds: 5);
+  final Duration _minSeekSpeed = const Duration(seconds: 10);
+  final Duration _maxSeekSpeed = const Duration(seconds: 60);
+  final Duration _speedIncrement = const Duration(seconds: 10);
   Timer? _speedIncreaseTimer;
 
   _FullScreenPlayerPageState() : _currentEpisodeIndex = 0;
@@ -213,11 +213,9 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       return;
     }
 
-    // 重置控制器显示状态
     setState(() => _controlsVisibility.value = true);
     _startControlsAutoHideTimer();
 
-    // 显示切换提示
     if (mounted) {
       setState(() {
         _controlsVisibility.value = true;
@@ -237,7 +235,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       );
     }
 
-    // 保存当前剧集的播放进度
     if (_controller.value.isInitialized) {
       _episodeProgress[_currentEpisodeIndex] = _controller.value.position;
     }
@@ -270,13 +267,11 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       await _controller.initialize();
       _setupWakelockListener();
 
-      // 恢复新剧集的播放进度
       if (_episodeProgress.containsKey(_currentEpisodeIndex)) {
         await _controller.seekTo(_episodeProgress[_currentEpisodeIndex]!);
       }
 
       _controller.addListener(() {
-        // 记录当前播放进度
         if (_controller.value.isPlaying) {
           _episodeProgress[_currentEpisodeIndex] = _controller.value.position;
         }
@@ -320,16 +315,16 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     _controller.value.isPlaying ? _controller.pause() : _controller.play();
   }
 
-  // 首先确保在类顶部添加这些变量声明（如果尚未添加）
-// late Timer? _speedIncreaseTimer;
-// Duration _currentSeekSpeed = const Duration(seconds: 10);
-// final Duration _speedIncrement = const Duration(seconds: 5);
-// final Duration _minSeekSpeed = const Duration(seconds: 5);
-// final Duration _maxSeekSpeed = const Duration(seconds: 30);
-
   void _startSeek(Duration step) {
+    if (_isLongPressing) return;
+
     _isLongPressing = true;
     _currentSeekSpeed = _seekStep;
+
+    // Initial seek
+    _handleSeek(step);
+
+    // Start periodic seeking
     _seekTimer?.cancel();
     _seekTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (_isLongPressing) {
@@ -339,6 +334,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       }
     });
 
+    // Start speed increase timer
     _speedIncreaseTimer?.cancel();
     _speedIncreaseTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _currentSeekSpeed = (_currentSeekSpeed + _speedIncrement).clamp(
@@ -349,7 +345,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   }
 
   void _stopSeek(Duration step) {
-    _handleSeek(step);
     _isLongPressing = false;
     _seekTimer?.cancel();
     _seekTimer = null;
@@ -359,6 +354,8 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   }
 
   void _handleSeek(Duration duration) {
+    if (!_controller.value.isInitialized) return;
+
     _toggleControlsVisibility(true);
     _isSeeking.value = true;
 
@@ -397,10 +394,10 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         _togglePlayPause();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowRight:
-        _handleSeek(_seekStep);
+        _startSeek(_seekStep);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowLeft:
-        _handleSeek(-_seekStep);
+        _startSeek(-_seekStep);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowUp:
         _changeEpisode(_currentEpisodeIndex - 1);
