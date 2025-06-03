@@ -311,50 +311,73 @@
   <!-- 在源列表卡片下方添加代理管理卡片 -->
   <div class="card mb-4">
     <div class="card-header bg-white">
-      <h2 class="mb-0"><i class="fas fa-server me-2"></i>代理管理</h2>
+      <h2 class="mb-0"><i class="fas fa-server me-2"></i>代理设置</h2>
     </div>
     <div class="card-body">
-      <form id="proxyForm">
-        <div class="row g-3">
-          <div class="col-md-4">
-            <label for="proxyName" class="form-label">代理名称</label>
-            <input type="text" class="form-control" id="proxyName" required placeholder="例如: 香港节点">
-          </div>
+      <div id="noProxyState" class="empty-state d-none">
+        <div class="empty-state-icon">
+          <i class="fas fa-server"></i>
+        </div>
+        <div>当前未设置代理</div>
+        <button class="btn btn-primary mt-3" onclick="showProxyForm()">
+          <i class="fas fa-plus me-1"></i>添加代理
+        </button>
+      </div>
 
-          <div class="col-md-4">
-            <label for="proxyUrl" class="form-label">代理地址</label>
-            <input type="url" class="form-control" id="proxyUrl" required placeholder="http://proxy.example.com:8080">
-          </div>
+      <div id="proxyFormContainer" class="d-none">
+        <form id="proxyForm">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label for="proxyName" class="form-label">代理名称</label>
+              <input type="text" class="form-control" id="proxyName" required placeholder="例如: 香港节点">
+            </div>
 
-          <div class="col-md-2 d-flex align-items-end">
-            <button type="submit" class="btn btn-primary w-100" id="submitProxyBtn">
-              <span id="submitProxyText"><i class="fas fa-plus me-1"></i>添加代理</span>
+            <div class="col-md-4">
+              <label for="proxyUrl" class="form-label">代理地址</label>
+              <input type="url" class="form-control" id="proxyUrl" required placeholder="http://proxy.example.com:8080">
+            </div>
+
+            <div class="col-md-2 d-flex align-items-end">
+              <button type="submit" class="btn btn-primary w-100" id="submitProxyBtn">
+                <span id="submitProxyText"><i class="fas fa-save me-1"></i>保存</span>
+              </button>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+              <button type="button" class="btn btn-outline-secondary w-100" onclick="hideProxyForm()">
+                <i class="fas fa-times me-1"></i>取消
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div id="proxyInfoContainer" class="d-none">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0">
+            <i class="fas fa-server me-2"></i>
+            <span id="currentProxyName"></span>
+          </h5>
+          <div>
+            <button class="btn btn-sm btn-outline-primary me-2" onclick="toggleProxyStatus()">
+              <i class="fas fa-power-off me-1"></i>
+              <span id="proxyStatusText">启用</span>
+            </button>
+            <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteProxy()">
+              <i class="fas fa-trash-alt me-1"></i>删除
             </button>
           </div>
         </div>
-      </form>
-
-      <div class="table-responsive mt-4">
-        <table class="table table-hover mb-0" id="proxiesTable">
-          <thead>
-          <tr>
-            <th>名称</th>
-            <th>代理地址</th>
-            <th>状态</th>
-            <th>操作</th>
-          </tr>
-          </thead>
-          <tbody id="proxiesList">
-          <tr>
-            <td colspan="3" class="empty-state">
-              <div class="empty-state-icon">
-                <i class="fas fa-spinner fa-spin"></i>
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center">
+              <i class="fas fa-link me-3 text-muted"></i>
+              <div>
+                <small class="text-muted">代理地址</small>
+                <div class="url-text" id="currentProxyUrl"></div>
               </div>
-              <div>加载中...</div>
-            </td>
-          </tr>
-          </tbody>
-        </table>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -643,7 +666,105 @@
     }
   }
 
-  // 添加代理表单提交处理
+  // ... 已有代码 ...
+
+  // 显示代理表单
+  function showProxyForm() {
+    document.getElementById('noProxyState').classList.add('d-none');
+    document.getElementById('proxyInfoContainer').classList.add('d-none');
+    document.getElementById('proxyFormContainer').classList.remove('d-none');
+    document.getElementById('proxyName').value = '';
+    document.getElementById('proxyUrl').value = '';
+  }
+
+  // 隐藏代理表单
+  function hideProxyForm() {
+    document.getElementById('proxyFormContainer').classList.add('d-none');
+    updateProxyUI();
+  }
+
+  // 更新代理UI显示
+  function updateProxyUI() {
+    if (currentProxy) {
+      document.getElementById('noProxyState').classList.add('d-none');
+      document.getElementById('proxyFormContainer').classList.add('d-none');
+      document.getElementById('proxyInfoContainer').classList.remove('d-none');
+
+      document.getElementById('currentProxyName').textContent = currentProxy.name;
+      document.getElementById('currentProxyUrl').textContent = currentProxy.url;
+      document.getElementById('proxyStatusText').textContent = currentProxy.enabled ? '禁用' : '启用';
+    } else {
+      document.getElementById('noProxyState').classList.remove('d-none');
+      document.getElementById('proxyInfoContainer').classList.add('d-none');
+      document.getElementById('proxyFormContainer').classList.add('d-none');
+    }
+  }
+
+  // 加载当前代理
+  async function loadProxy() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/proxies`);
+      const proxies = await response.json();
+      currentProxy = proxies.length > 0 ? proxies[0] : null;
+      updateProxyUI();
+    } catch (error) {
+      console.error('加载代理失败:', error);
+    }
+  }
+
+  // 切换代理状态
+  async function toggleProxyStatus() {
+    if (!currentProxy) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/proxies/toggle?id=${currentProxy.id}`, {
+        method: 'PUT',
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        currentProxy.enabled = result.data.enabled;
+        updateProxyUI();
+        showMessage(`代理已${currentProxy.enabled ? '启用' : '禁用'}`, true);
+      } else {
+        throw new Error('状态更新失败');
+      }
+    } catch (error) {
+      showMessage('操作失败: ' + error.message, false);
+    }
+  }
+
+  // 确认删除代理
+  function confirmDeleteProxy() {
+    if (!currentProxy) return;
+
+    if (confirm(`确定要删除代理 "${currentProxy.name}" 吗？此操作无法撤销！`)) {
+      deleteProxy();
+    }
+  }
+
+  // 删除代理
+  async function deleteProxy() {
+    if (!currentProxy) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/proxies?id=${currentProxy.id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        showMessage('代理删除成功', true);
+        currentProxy = null;
+        updateProxyUI();
+      } else {
+        throw new Error('删除失败');
+      }
+    } catch (error) {
+      showMessage('删除失败: ' + error.message, false);
+    }
+  }
+
+  // 代理表单提交处理
   document.getElementById('proxyForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
@@ -663,139 +784,23 @@
       });
 
       if (response.ok) {
-        showMessage('代理添加成功', true);
-        document.getElementById('proxyForm').reset();
-        loadProxies();
+        const result = await response.json();
+        currentProxy = result.data;
+        showMessage('代理设置成功', true);
+        hideProxyForm();
+        updateProxyUI();
       } else {
-        throw new Error('添加代理失败');
+        throw new Error('保存代理失败');
       }
     } catch (error) {
-      showMessage('添加代理失败: ' + error.message, false);
+      showMessage('保存代理失败: ' + error.message, false);
     }
   });
 
-  // 移除updateProxyStats函数，直接使用renderProxies
-  async function loadProxies() {
-    try {
-      proxiesListEl.innerHTML = `
-      <tr>
-        <td colspan="3" class="empty-state">
-          <div class="empty-state-icon">
-            <i class="fas fa-spinner fa-spin"></i>
-          </div>
-          <div>加载中...</div>
-        </td>
-      </tr>
-    `;
 
-      const response = await fetch(`${API_BASE_URL}/api/proxies`);
-      if (!response.ok) throw new Error('获取代理列表失败');
+  // 初始化时加载代理
+  let currentProxy = null;
 
-      allProxies = await response.json();
-      renderProxies(allProxies);
-
-    } catch (error) {
-      showMessage('加载代理列表失败: ' + error.message, false);
-      proxiesListEl.innerHTML = `
-      <tr>
-        <td colspan="3" class="empty-state">
-          <div class="empty-state-icon">
-            <i class="fas fa-exclamation-triangle"></i>
-          </div>
-          <div>加载失败，请刷新重试</div>
-        </td>
-      </tr>
-    `;
-    }
-  }
-
-  // 保留renderProxies函数
-  // 渲染代理列表
-  function renderProxies(proxies) {
-    const tableBody = document.getElementById('proxiesList');
-
-    if (!proxies || proxies.length === 0) {
-      tableBody.innerHTML = `
-      <tr>
-        <td colspan="4" class="empty-state">
-          <div class="empty-state-icon">
-            <i class="fas fa-info-circle"></i>
-          </div>
-          <div>暂无代理，请添加</div>
-        </td>
-      </tr>
-    `;
-      return;
-    }
-
-    let html = '';
-    proxies.forEach((proxy) => {
-      html += `
-      <tr>
-        <td>${proxy.name ? escapeHtml(proxy.name) : '未命名'}</td>
-        <td><small class="url-text">${proxy.url ? escapeHtml(proxy.url) : ''}</small></td>
-        <td>
-          <span class="badge rounded-pill ${proxy.enabled ? 'badge-enabled' : 'badge-disabled'}">
-            <i class="fas ${proxy.enabled ? 'fa-check' : 'fa-ban'} me-1"></i>
-            ${proxy.enabled ? '已启用' : '已禁用'}
-          </span>
-        </td>
-        <td>
-          <div class="d-flex gap-2">
-            <button class="btn btn-sm ${proxy.enabled ? 'btn-warning' : 'btn-primary'}"
-              onclick="toggleProxy('${proxy.id}', ${!proxy.enabled})">
-              <i class="fas ${proxy.enabled ? 'fa-toggle-off' : 'fa-toggle-on'} me-1"></i>
-              ${proxy.enabled ? '禁用' : '启用'}
-            </button>
-            <button class="btn btn-sm btn-danger" onclick="deleteProxy('${proxy.id}')">
-              <i class="fas fa-trash-alt"></i>
-            </button>
-          </div>
-        </td>
-      </tr>
-    `;
-    });
-
-    tableBody.innerHTML = html;
-  }
-
-  // 删除代理
-  async function deleteProxy(id) {
-    if (!confirm('确定要删除此代理吗？')) return;
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/proxies?id=${id}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        showMessage('代理删除成功', true);
-        loadProxies();
-      } else {
-        throw new Error('删除失败');
-      }
-    } catch (error) {
-      showMessage('删除代理失败: ' + error.message, false);
-    }
-  }
-
-  // 添加切换代理状态的函数
-  async function toggleProxy(id, enabled) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/proxies/toggle?id=${id}`, {
-        method: 'PUT',
-      });
-
-      if (response.ok) {
-        showMessage(`代理已${enabled ? '启用' : '禁用'}`, true);
-        loadProxies();
-      } else {
-        throw new Error('状态更新失败');
-      }
-    } catch (error) {
-      showMessage('操作失败: ' + error.message, false);
-    }
-  }
 
   // HTML转义
   function escapeHtml(unsafe) {
@@ -809,7 +814,7 @@
 
   // 初始化加载
   loadSources();
-  loadProxies();
+  loadProxy();
 
   // 回车搜索
   searchInputEl.addEventListener('keyup', function(e) {

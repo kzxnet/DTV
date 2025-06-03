@@ -141,7 +141,10 @@ class SourceStorage {
 
   static Future<Source> toggleSource(String id) async {
     final box = Hive.box(_boxName);
-    final source = Source.fromJson(box.get(id));
+    final sourceJson = box.get(id);
+    if (sourceJson == null) throw Exception('Source not found');
+
+    final source = Source.fromJson(Map<String, dynamic>.from(sourceJson));
     source.disabled = !source.disabled;
     source.updatedAt = DateTime.now();
     await box.put(id, source.toJson());
@@ -174,8 +177,11 @@ class SourceStorage {
   }
 
   static Future<Proxy> toggleProxy(String id) async {
-    final box = Hive.box(_proxyBoxName);
-    final proxy = Proxy.fromJson(box.get(id));
+    final box = await Hive.openBox(_proxyBoxName);
+    final proxyJson = box.get(id);
+    if (proxyJson == null) throw Exception('Proxy not found');
+
+    final proxy = Proxy.fromJson(Map<String, dynamic>.from(proxyJson));
     proxy.enabled = !proxy.enabled;
     proxy.updatedAt = DateTime.now();
     await box.put(id, proxy.toJson());
