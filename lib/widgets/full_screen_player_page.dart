@@ -393,10 +393,10 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         _togglePlayPause();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowRight:
-        _startSeek(_seekStep);
+        _handleSeek(_seekStep);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowLeft:
-        _startSeek(-_seekStep);
+        _handleSeek(-_seekStep);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowUp:
         _changeEpisode(_currentEpisodeIndex - 1);
