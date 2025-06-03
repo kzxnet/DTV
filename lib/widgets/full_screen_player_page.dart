@@ -47,6 +47,14 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   // 新增：记录每一集的播放进度
   final Map<int, Duration> _episodeProgress = {};
 
+  // 新增：快进/快退速度相关变量
+  Duration _currentSeekSpeed = const Duration(seconds: 10);
+  final Duration _minSeekSpeed = const Duration(seconds: 5);
+  final Duration _maxSeekSpeed = const Duration(seconds: 30);
+  final Duration _speedIncrement = const Duration(seconds: 5);
+  Timer? _speedIncreaseTimer;
+
+
   _FullScreenPlayerPageState() : _currentEpisodeIndex = 0;
 
   @override
@@ -96,6 +104,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   @override
   void dispose() {
     _seekTimer?.cancel();
+    _speedIncreaseTimer?.cancel(); // 新增：释放速度增加定时器
     WakelockPlus.disable().catchError((e) => debugPrint(e.toString()));
     _controller.dispose();
     _chewieController?.dispose();
@@ -269,21 +278,39 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
 
   void _startSeek(Duration step) {
     _isLongPressing = true;
+    _currentSeekSpeed = _seekStep; // 重置速度
     _seekTimer?.cancel();
     _seekTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (_isLongPressing) {
-        _handleSeek(step);
+        _handleSeek(_currentSeekSpeed * step.inSeconds.sign);
       } else {
         timer.cancel();
       }
     });
+
+    // 新增：速度逐步增加的定时器
+    _speedIncreaseTimer?.cancel();
+    _speedIncreaseTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        _currentSeekSpeed = (_currentSeekSpeed + _speedIncrement).clamp(
+            _minSeekSpeed,
+            _maxSeekSpeed
+        );
+      });
+    });
   }
+
 
   void _stopSeek(Duration step) {
     _handleSeek(step);
     _isLongPressing = false;
     _seekTimer?.cancel();
     _seekTimer = null;
+
+    // 新增：停止速度增加定时器
+    _speedIncreaseTimer?.cancel();
+    _speedIncreaseTimer = null;
+    _currentSeekSpeed = _seekStep; // 重置速度
   }
 
   void _handleSeek(Duration duration) {
