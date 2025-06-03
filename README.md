@@ -1,4 +1,4 @@
-我将为您完善 LibreTV 应用的 README 文档，添加本地源管理功能说明并保持其他内容不变。以下是更新后的版本：
+我已为您完善了 LibreTV 应用的 README 文档，添加了本地源管理功能说明并整合了系统初始化配置信息。以下是优化后的版本：
 
 ```markdown
 ---
@@ -17,8 +17,9 @@
 - ⏯️ **播放控制**：播放/暂停、快进/快退、进度条拖动
 - 🔉 **音量调节**：支持系统音量控制
 - 🌙 **屏幕常亮**：播放时防止设备休眠
-- 📡 **API 聚合**：支持苹果CMS V10 API 视频源
-- 💾 **本地源管理**：支持通过Web界面管理本地视频源
+- 📡 **API 聚合**：支持多视频源 API 接口
+- 💾 **本地源管理**：支持通过Web界面管理本地视频源和代理设置
+- ⚙️ **动态配置**：支持远程加载配置文件初始化系统
 
 ---
 
@@ -34,35 +35,57 @@
 
 ---
 
-## 📡 数据接口
+## ⚙️ 系统初始化配置
 
-本应用使用 **苹果CMS V10 API** 作为视频源：
+应用启动时会从以下URL加载默认配置：
+`https://ktv.aini.us.kg/config.json`
 
-```dart
-// 示例：搜索视频
-const apiUrl = 'http://电视IP:8023/api/search?wd=00后';
+### 配置文件格式示例：
+```json
+{
+	"sources": [
+		{
+			"name": "xx资源",
+			"url": "https://xxx.com/api.php/provide/vod",
+			"weight": 5,
+			"disabled": false
+		},
+		// 更多视频源...
+	],
+	"proxy": {
+		"name": "默认代理",
+		"enabled": true,
+		"url": "https://proxy.aini.us.kg"
+	}
+}
 ```
 
-### 主要 API 端点
-
-| 功能     | 接口路径               | 参数         |
-|----------|-----------------------|------------|
-| 视频搜索  | `/api/search`         | `wd=[关键词]` |
-| 视频源    | `/api/sources`        | -          |
+### 配置参数说明：
+- `sources`: 视频源列表
+    - `name`: 资源名称
+    - `url`: API地址
+    - `weight`: 权重(1-10)
+    - `disabled`: 是否禁用
+- `proxy`: 代理设置
+    - `name`: 代理名称
+    - `enabled`: 是否启用
+    - `url`: 代理服务器地址
 
 ---
 
 ## 💻 本地源管理
 
-LibreTV 提供 Web 管理界面用于管理本地视频源：
+LibreTV 提供 Web 管理界面用于管理视频源和代理设置：
 
 1. **访问管理界面**：
-    - 在浏览器中输入：`http://[电视IP地址]:8023`
+    - 在浏览器中输入：`http://[设备IP地址]:8023`
     - 示例：`http://192.168.1.100:8023`
 
-2. **功能说明**：
-    - 添加/删除视频源
-    - 添加/删除代理
+2. **管理功能**：
+    - 添加/编辑/删除视频源
+    - 配置代理服务器
+    - 调整资源权重
+    - 启用/禁用特定资源
 
 ---
 
@@ -127,7 +150,6 @@ flutter build apk --release
 - [Flutter 官方文档](https://docs.flutter.dev/)
 - [Dart 语言指南](https://dart.dev/guides)
 - [video_player 插件文档](https://pub.dev/packages/video_player)
-- [苹果CMS API 文档]()
 - [TV 应用设计规范](https://developer.android.com/design/tv)
 
 ---
