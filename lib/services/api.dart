@@ -19,6 +19,7 @@ void main() async {
   final appDocumentDir = await getApplicationDocumentsDirectory();
   Hive.init(appDocumentDir.path);
   await Hive.openBox('sources');
+  await Hive.openBox('proxies'); // 新增代理存储
 
   // 启动Web服务
   final server = await startServer();
@@ -39,7 +40,7 @@ Future<Directory> _copyAssetsToDocuments() async {
 
   // 要复制的文件列表
   final assets = [
-    'assets/index.html'
+    'assets/web/index.html'
   ];
 
   // 复制每个文件
@@ -74,6 +75,10 @@ Future<HttpServer> startServer({int port = 8080}) async {
     ..delete('/api/sources', _handleDeleteSource)
     ..get('/api/search', _handleSearchRequest)
     ..get('/', staticHandler)
+    ..get('/api/proxies', _handleGetProxies)
+    ..post('/api/proxies', _handleAddProxy)
+    ..put('/api/proxies/toggle', _handleToggleProxy) // 添加切换状态路由
+    ..delete('/api/proxies', _handleDeleteProxy)
     ..get('/<any|.*>', staticHandler);
 
 
@@ -119,6 +124,7 @@ class MyApp extends StatelessWidget {
 // 存储操作类
 class SourceStorage {
   static const String _boxName = 'sources';
+  static const String _proxyBoxName = 'proxies';
 
   static Future<List<Source>> getAllSources() async {
     final box = Hive.box(_boxName);
@@ -146,6 +152,36 @@ class SourceStorage {
     final box = Hive.box(_boxName);
     await box.delete(id);
   }
+
+  // 代理相关方法
+
+  // 添加代理
+  static Future<Proxy> addProxy(Proxy proxy) async {
+    final box = Hive.box(_proxyBoxName);
+    await box.put(proxy.id, proxy.toJson());
+    return proxy;
+  }
+
+  static Future<List<Proxy>> getAllProxies() async {
+    final box = Hive.box(_proxyBoxName);
+    return box.values.map((e) => Proxy.fromJson(Map<String, dynamic>.from(e))).toList();
+  }
+
+
+  static Future<void> deleteProxy(String id) async {
+    final box = Hive.box(_proxyBoxName);
+    await box.delete(id);
+  }
+
+  static Future<Proxy> toggleProxy(String id) async {
+    final box = Hive.box(_proxyBoxName);
+    final proxy = Proxy.fromJson(box.get(id));
+    proxy.enabled = !proxy.enabled;
+    proxy.updatedAt = DateTime.now();
+    await box.put(id, proxy.toJson());
+    return proxy;
+  }
+
 }
 
 // 源数据模型
@@ -270,6 +306,84 @@ Future<Response> _handleDeleteSource(Request request) async {
     return _createErrorResponse(e.toString(), 400, e);
   }
 }
+
+Future<Response> _handleAddProxy(Request request) async {
+  try {
+    final body = await request.readAsString();
+    final data = jsonDecode(body);
+
+    if (data['url'] == null) {
+      throw Exception('URL不能为空');
+    }
+
+    if(data['name'] == null) {
+      throw Exception('代理名称不能为空');
+    }
+
+    // 验证URL格式
+    final url = data['url'].toString().trim();
+    if (!_isValidUrl(url)) {
+      throw Exception('请输入有效的URL地址');
+    }
+
+    final proxy = Proxy(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      url: url,
+      name:data['name']
+    );
+
+    final newProxy = await SourceStorage.addProxy(proxy);
+
+    return _createJsonResponse({
+      'success': true,
+      'message': '代理添加成功',
+      'data': newProxy.toJson(),
+    });
+  } catch (e) {
+    return _createErrorResponse(e.toString(), 400, e);
+  }
+}
+
+
+// 获取所有代理
+Future<Response> _handleGetProxies(Request request) async {
+  try {
+    final proxies = await SourceStorage.getAllProxies();
+    return _createJsonResponse(proxies);
+  } catch (e) {
+    return _createErrorResponse('获取代理列表失败', 500, e);
+  }
+}
+
+// 添加切换代理状态的处理函数
+Future<Response> _handleToggleProxy(Request request) async {
+  try {
+    final id = request.url.queryParameters['id'];
+    if (id == null) throw Exception('缺少ID参数');
+
+    final updatedProxy = await SourceStorage.toggleProxy(id);
+    return _createJsonResponse({
+      'success': true,
+      'data': updatedProxy.toJson(),
+    });
+  } catch (e) {
+    return _createErrorResponse(e.toString(), 400, e);
+  }
+}
+
+// 删除代理
+Future<Response> _handleDeleteProxy(Request request) async {
+  try {
+    final id = request.url.queryParameters['id'];
+    if (id == null) throw Exception('缺少ID参数');
+
+    await SourceStorage.deleteProxy(id);
+    return _createJsonResponse({'success': true});
+  } catch (e) {
+    return _createErrorResponse(e.toString(), 400, e);
+  }
+}
+
 
 Future<Response> _handleSearchRequest(Request request) async {
   final wd = request.url.queryParameters['wd'] ?? '';
@@ -419,5 +533,46 @@ Future<Map<String, dynamic>> get(Uri url, {Duration? timeout}) async {
     return {'statusCode': response.statusCode, 'body': responseBody};
   } finally {
     client.close();
+  }
+}
+
+class Proxy {
+  final String id;
+  final String url; // 仅保留URL字段
+  final String name;
+  bool enabled;
+  DateTime createdAt;
+  DateTime updatedAt;
+
+  Proxy({
+    required this.id,
+    required this.url,
+    required this.name,
+    this.enabled = true,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) : createdAt = createdAt ?? DateTime.now(),
+       updatedAt = updatedAt ?? DateTime.now();
+
+  factory Proxy.fromJson(Map<String, dynamic> json) {
+    return Proxy(
+      id: json['id'],
+      url: json['url'],
+      name:json['name'],
+      enabled: json['enabled'],
+      createdAt: DateTime.parse(json['createdAt']),
+      updatedAt: DateTime.parse(json['updatedAt']),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'url': url,
+      'name': name,
+      'enabled': enabled,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
   }
 }

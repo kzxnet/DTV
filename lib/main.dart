@@ -14,6 +14,8 @@ void main() async {
   final appDocumentDir = await getApplicationDocumentsDirectory();
   Hive.init(appDocumentDir.path);
   await Hive.openBox('sources');
+  await Hive.openBox('proxies');
+
 
   // 启动Web服务
   final server = await startServer();
