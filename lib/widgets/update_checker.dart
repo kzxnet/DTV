@@ -180,7 +180,7 @@ class AppUpdater {
       final savePath = '${dir.path}/update_${DateTime.now().millisecondsSinceEpoch}.apk';
 
       await _dio.download(
-        apkUrl,
+        "https://proxy.aini.us.kg/$apkUrl",
         savePath,
         cancelToken: _cancelToken,
         onReceiveProgress: (received, total) {
