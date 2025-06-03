@@ -208,22 +208,22 @@ class _SearchPageState extends State<SearchPage> {
   // ... existing code ...
 
   Widget _buildSearchButton() {
-    return Focus(
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.select) {
-          _searchMovies(_searchController.text.trim());
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: Builder(
-        builder: (context) {
-          final hasFocus = Focus.of(context).hasFocus;
-          return Row(
-            children: [
-              // 搜索按钮
-              AnimatedContainer(
+    return Row(
+      children: [
+        // 搜索按钮
+        Focus(
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.select) {
+              _searchMovies(_searchController.text.trim());
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Builder(
+            builder: (context) {
+              final hasFocus = Focus.of(context).hasFocus;
+              return AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 margin: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
@@ -263,10 +263,24 @@ class _SearchPageState extends State<SearchPage> {
                     ),
                   ),
                 ),
-              ),
-              // 新增管理按钮
-              const SizedBox(width: 8),
-              AnimatedContainer(
+              );
+            },
+          ),
+        ),
+        // 管理按钮
+        Focus(
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.select) {
+              _showQRCodeDialog();
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Builder(
+            builder: (context) {
+              final hasFocus = Focus.of(context).hasFocus;
+              return AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 margin: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
@@ -306,11 +320,11 @@ class _SearchPageState extends State<SearchPage> {
                     ),
                   ),
                 ),
-              ),
-            ],
-          );
-        },
-      ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
