@@ -152,5 +152,11 @@ flutter build apk --release
 
 ---
 
+## 🙏 鸣谢
+
+特别感谢 [LibreSpark/LibreTV](https://github.com/LibreSpark/LibreTV) 项目作者提供的灵感和技术思路。
+
+---
+
 > ✨ 欢迎贡献代码！请提交 Pull Request 到 `dev` 分支。  
 > 🐞 问题反馈：<laopaoer@protonmail.com>
