@@ -16,12 +16,6 @@ void main() async {
   final appDocumentDir = await getApplicationDocumentsDirectory();
   Hive.init(appDocumentDir.path);
 
-
-  await Hive.deleteBoxFromDisk("sources");
-
-  await Hive.deleteBoxFromDisk("proxies");
-
-
   await Hive.openBox('sources');
   await Hive.openBox('proxies');
 
