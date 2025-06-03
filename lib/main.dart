@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive/hive.dart';
@@ -15,6 +16,9 @@ void main() async {
   Hive.init(appDocumentDir.path);
   await Hive.openBox('sources');
   await Hive.openBox('proxies');
+
+  // 加载并存储初始配置
+  await _loadInitialConfig();
 
 
   // 启动Web服务
@@ -77,5 +81,42 @@ class MyApp extends StatelessWidget {
       ),
       home: const AppWrapper(),
     );
+  }
+}
+
+Future<void> _loadInitialConfig() async {
+  final sourcesBox = Hive.box('sources');
+  final proxiesBox = Hive.box('proxies');
+
+  // 检查是否已有配置
+  if (sourcesBox.isEmpty || proxiesBox.isEmpty) {
+    try {
+      final dio = Dio();
+      final response = await dio.get(
+        'https://ktv.aini.us.kg/config.json',
+        options: Options(responseType: ResponseType.json),
+      );
+
+      if (response.statusCode == 200) {
+        final config = response.data;
+
+        // 存储源数据
+        for (final source in config['sources']) {
+          final id = DateTime.now().millisecondsSinceEpoch.toString();
+          sourcesBox.put(id, {
+            ...source,
+            'id': id,
+            'createdAt': DateTime.now().toIso8601String(),
+            'updatedAt': DateTime.now().toIso8601String(),
+          });
+        }
+
+        // 存储代理数据
+        final pid = DateTime.now().millisecondsSinceEpoch.toString();
+        proxiesBox.put(pid,{"id":pid,"url":config['proxy']['url'],"name": config['proxy']['name'],"enabled":config['proxy']['enabled'],"createdAt":DateTime.now().toIso8601String(),"updatedAt":DateTime.now().toIso8601String()});
+      }
+    } catch (e) {
+      print('加载初始配置失败: $e');
+    }
   }
 }
