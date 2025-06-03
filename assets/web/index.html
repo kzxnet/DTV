@@ -24,6 +24,118 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', sans-serif;
     }
 
+    /* 消息通知样式 - 增加内边距 */
+    .alert-notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      min-width: 320px; /* 稍微增加最小宽度 */
+      max-width: 420px; /* 增加最大宽度 */
+      z-index: 1100;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      opacity: 0;
+      transform: translateX(30px);
+      transition: all 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+      display: flex;
+      align-items: flex-start;
+      border-radius: 12px; /* 增加圆角半径 */
+      border-left: 5px solid transparent;
+      padding: 20px 18px; /* 增加内边距：上下20px，左右18px */
+      background: white;
+      margin-bottom: 15px; /* 增加通知之间的间距 */
+    }
+
+    /* 内容区域调整 */
+    .alert-notification .content {
+      flex-grow: 1;
+      padding-right: 12px; /* 增加右侧内边距 */
+    }
+
+    .alert-notification .message {
+      color: #555;
+      font-size: 0.95rem;
+      line-height: 1.5; /* 增加行高 */
+      margin-bottom: 0;
+      padding: 0 2px; /* 给文字两侧增加微小空间 */
+    }
+
+    /* 操作按钮区域调整 */
+    .notification-actions {
+      display: flex;
+      gap: 10px; /* 增加按钮间距 */
+      margin-top: 16px; /* 增加与上方内容的间距 */
+      padding-top: 8px; /* 顶部内边距 */
+    }
+
+    /* 图标调整 */
+    .alert-notification .icon {
+      font-size: 1.8rem;
+      margin-right: 18px; /* 增加图标与内容的间距 */
+      margin-top: 3px; /* 微调垂直位置 */
+    }
+
+    .alert-notification.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .alert-notification.hide {
+      opacity: 0;
+      transform: translateY(-30px);
+    }
+
+    .alert-notification.success {
+      background-color: #f6ffed;
+      border-color: var(--primary-color);
+      color: var(--primary-dark);
+    }
+
+    .alert-notification.error {
+      background-color: #fff2f0;
+      border-color: var(--danger-color);
+      color: var(--danger-color);
+    }
+
+    .alert-notification.warning {
+      background-color: #fffbe6;
+      border-color: var(--warning-color);
+      color: #d48806;
+    }
+
+    .alert-notification.info {
+      background-color: #e6f7ff;
+      border-color: var(--info-color);
+      color: #08979c;
+    }
+
+    .alert-notification .icon {
+      font-size: 1.5rem;
+      margin-right: 12px;
+      flex-shrink: 0;
+    }
+
+    .alert-notification .title {
+      font-weight: 600;
+      margin-bottom: 8px; /* 增加标题与消息的间距 */
+      font-size: 1.1rem;
+    }
+
+    .alert-notification .close-btn {
+      background: none;
+      border: none;
+      color: inherit;
+      opacity: 0.7;
+      cursor: pointer;
+      margin-left: 12px;
+      font-size: 1rem;
+      transition: opacity 0.2s;
+    }
+
+    .alert-notification .close-btn:hover {
+      opacity: 1;
+    }
+
+    /* 其他原有样式保持不变 */
     .card {
       border-radius: 8px;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
@@ -192,12 +304,6 @@
     <button class="btn btn-outline-primary" onclick="loadSources()">
       <i class="fas fa-sync-alt me-1"></i> 刷新
     </button>
-  </div>
-
-  <!-- 状态消息 -->
-  <div id="statusMessage" class="alert d-none">
-    <i class="fas fa-check-circle me-2"></i>
-    <span id="statusText"></span>
   </div>
 
   <!-- 统计卡片 -->
@@ -383,6 +489,9 @@
   </div>
 </div>
 
+<!-- 消息通知容器 -->
+<div id="notificationContainer"></div>
+
 <!-- Bootstrap 5 JS Bundle with Popper -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -393,11 +502,9 @@
   // 全局状态
   let allSources = [];
   let isLoading = false;
-  let allProxies = [];
+  let currentProxy = null;
 
   // DOM元素
-  const statusEl = document.getElementById('statusMessage');
-  const statusTextEl = document.getElementById('statusText');
   const sourcesListEl = document.getElementById('sourcesList');
   const searchInputEl = document.getElementById('searchInput');
   const submitBtnEl = document.getElementById('submitBtn');
@@ -405,29 +512,83 @@
   const totalSourcesEl = document.getElementById('totalSources');
   const activeSourcesEl = document.getElementById('activeSources');
   const averageWeightEl = document.getElementById('averageWeight');
-  const proxiesListEl = document.getElementById('proxiesList');
   const submitProxyBtnEl = document.getElementById('submitProxyBtn');
   const submitProxyTextEl = document.getElementById('submitProxyText');
 
+  /**
+   * 显示消息通知
+   * @param {string} message 消息内容
+   * @param {string} type 消息类型: 'success', 'error', 'warning', 'info'
+   * @param {number} [duration=3000] 自动隐藏时间(毫秒)，0表示不自动隐藏
+   */
+  function showMessage(message, type = 'info', duration = 3000) {
+    // 创建消息元素
+    const notification = document.createElement('div');
+    notification.className = `alert-notification ${type}`;
 
-  // 显示消息
-  function showMessage(message, isSuccess) {
-    const icon = isSuccess ? 'fa-check-circle' : 'fa-exclamation-circle';
-    const alertClass = isSuccess ? 'alert-success' : 'alert-danger';
+    // 设置图标
+    let iconClass;
+    switch (type) {
+      case 'success':
+        iconClass = 'fa-check-circle';
+        break;
+      case 'error':
+        iconClass = 'fa-exclamation-circle';
+        break;
+      case 'warning':
+        iconClass = 'fa-exclamation-triangle';
+        break;
+      case 'info':
+      default:
+        iconClass = 'fa-info-circle';
+    }
 
-    statusEl.innerHTML = `
-        <i class="fas ${icon} me-2"></i>
-        <span id="statusText">${message}</span>
-      `;
-    statusEl.className = `alert ${alertClass} d-flex align-items-center`;
-    statusEl.style.display = 'flex';
+    notification.innerHTML = `
+      <i class="fas ${iconClass} icon"></i>
+      <div class="content">${message}</div>
+      <button class="close-btn" aria-label="关闭">
+        <i class="fas fa-times"></i>
+      </button>
+    `;
+
+    // 添加到容器
+    document.getElementById('notificationContainer').appendChild(notification);
+
+    // 显示动画
+    setTimeout(() => {
+      notification.classList.add('show');
+    }, 10);
+
+    // 关闭按钮事件
+    const closeBtn = notification.querySelector('.close-btn');
+    closeBtn.addEventListener('click', () => {
+      hideNotification(notification);
+    });
 
     // 自动隐藏
-    if (isSuccess) {
+    if (duration > 0) {
       setTimeout(() => {
-        statusEl.style.display = 'none';
-      }, 3000);
+        hideNotification(notification);
+      }, duration);
     }
+
+    return notification;
+  }
+
+  /**
+   * 隐藏消息通知
+   * @param {HTMLElement} notification 消息元素
+   */
+  function hideNotification(notification) {
+    if (!notification) return;
+
+    notification.classList.remove('show');
+    notification.classList.add('hide');
+
+    // 动画结束后移除元素
+    setTimeout(() => {
+      notification.remove();
+    }, 300);
   }
 
   // 设置加载状态
@@ -478,9 +639,10 @@
       allSources = await response.json();
       renderSources(allSources);
       updateStats(allSources);
+      showMessage('源列表加载成功', 'success');
 
     } catch (error) {
-      showMessage('加载源列表失败: ' + error.message, false);
+      showMessage('加载源列表失败: ' + error.message, 'error');
       sourcesListEl.innerHTML = `
           <tr>
             <td colspan="5" class="empty-state">
@@ -560,6 +722,9 @@
             source.url.toLowerCase().includes(searchTerm)
     );
 
+    if (filtered.length === 0) {
+      showMessage('没有找到匹配的源', 'warning', 2000);
+    }
     renderSources(filtered);
   }
 
@@ -567,6 +732,7 @@
   function resetSearch() {
     searchInputEl.value = '';
     renderSources(allSources);
+    showMessage('搜索已重置', 'info', 1500);
   }
 
   // 添加源
@@ -579,19 +745,19 @@
 
     // 验证输入
     if (!name) {
-      showMessage('请输入源名称', false);
+      showMessage('请输入源名称', 'error');
       document.getElementById('name').focus();
       return;
     }
 
     if (!url) {
-      showMessage('请输入API地址', false);
+      showMessage('请输入API地址', 'error');
       document.getElementById('url').focus();
       return;
     }
 
     if (weight < 1 || weight > 10) {
-      showMessage('权重必须在1-10之间', false);
+      showMessage('权重必须在1-10之间', 'error');
       document.getElementById('weight').focus();
       return;
     }
@@ -607,14 +773,14 @@
 
       const result = await response.json();
       if (response.ok) {
-        showMessage('源添加成功', true);
+        showMessage('源添加成功', 'success');
         document.getElementById('addForm').reset();
         await loadSources();
       } else {
         throw new Error(result.message || '添加失败');
       }
     } catch (error) {
-      showMessage('添加失败: ' + error.message, false);
+      showMessage('添加失败: ' + error.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -628,13 +794,13 @@
       });
 
       if (response.ok) {
-        showMessage(`源已${disabled ? '禁用' : '启用'}`, true);
+        showMessage(`源已${disabled ? '禁用' : '启用'}`, 'success');
         await loadSources();
       } else {
         throw new Error('状态更新失败');
       }
     } catch (error) {
-      showMessage('操作失败: ' + error.message, false);
+      showMessage('操作失败: ' + error.message, 'error');
     }
   }
 
@@ -643,9 +809,36 @@
     const source = allSources.find(s => s.id === id);
     if (!source) return;
 
-    if (confirm(`确定要删除源 "${source.name}" 吗？此操作无法撤销！`)) {
+    // 使用更美观的确认对话框
+    const notification = showMessage(
+            `确定要删除源 "${source.name}" 吗？此操作无法撤销！`,
+            'warning',
+            0 // 不自动关闭
+    );
+
+    // 添加确认按钮
+    const confirmDiv = document.createElement('div');
+    confirmDiv.className = 'd-flex gap-2 mt-3';
+    confirmDiv.innerHTML = `
+      <button class="btn btn-sm btn-danger flex-grow-1 confirm-btn">
+        <i class="fas fa-trash-alt me-1"></i>确认删除
+      </button>
+      <button class="btn btn-sm btn-outline-secondary flex-grow-1 cancel-btn">
+        <i class="fas fa-times me-1"></i>取消
+      </button>
+    `;
+
+    notification.querySelector('.content').appendChild(confirmDiv);
+
+    // 事件处理
+    notification.querySelector('.confirm-btn').addEventListener('click', () => {
+      hideNotification(notification);
       deleteSource(id);
-    }
+    });
+
+    notification.querySelector('.cancel-btn').addEventListener('click', () => {
+      hideNotification(notification);
+    });
   }
 
   // 删除源
@@ -656,17 +849,15 @@
       });
 
       if (response.ok) {
-        showMessage('删除成功', true);
+        showMessage('删除成功', 'success');
         await loadSources();
       } else {
         throw new Error('删除失败');
       }
     } catch (error) {
-      showMessage('删除失败: ' + error.message, false);
+      showMessage('删除失败: ' + error.message, 'error');
     }
   }
-
-  // ... 已有代码 ...
 
   // 显示代理表单
   function showProxyForm() {
@@ -707,8 +898,9 @@
       const proxies = await response.json();
       currentProxy = proxies.length > 0 ? proxies[0] : null;
       updateProxyUI();
+      showMessage('代理设置加载成功', 'success');
     } catch (error) {
-      console.error('加载代理失败:', error);
+      showMessage('加载代理设置失败: ' + error.message, 'error');
     }
   }
 
@@ -725,12 +917,12 @@
         const result = await response.json();
         currentProxy.enabled = result.data.enabled;
         updateProxyUI();
-        showMessage(`代理已${currentProxy.enabled ? '启用' : '禁用'}`, true);
+        showMessage(`代理已${currentProxy.enabled ? '启用' : '禁用'}`, 'success');
       } else {
         throw new Error('状态更新失败');
       }
     } catch (error) {
-      showMessage('操作失败: ' + error.message, false);
+      showMessage('操作失败: ' + error.message, 'error');
     }
   }
 
@@ -738,9 +930,36 @@
   function confirmDeleteProxy() {
     if (!currentProxy) return;
 
-    if (confirm(`确定要删除代理 "${currentProxy.name}" 吗？此操作无法撤销！`)) {
+    // 使用更美观的确认对话框
+    const notification = showMessage(
+            `确定要删除代理 "${currentProxy.name}" 吗？此操作无法撤销！`,
+            'warning',
+            0 // 不自动关闭
+    );
+
+    // 添加确认按钮
+    const confirmDiv = document.createElement('div');
+    confirmDiv.className = 'd-flex gap-2 mt-3';
+    confirmDiv.innerHTML = `
+      <button class="btn btn-sm btn-danger flex-grow-1 confirm-btn">
+        <i class="fas fa-trash-alt me-1"></i>确认删除
+      </button>
+      <button class="btn btn-sm btn-outline-secondary flex-grow-1 cancel-btn">
+        <i class="fas fa-times me-1"></i>取消
+      </button>
+    `;
+
+    notification.querySelector('.content').appendChild(confirmDiv);
+
+    // 事件处理
+    notification.querySelector('.confirm-btn').addEventListener('click', () => {
+      hideNotification(notification);
       deleteProxy();
-    }
+    });
+
+    notification.querySelector('.cancel-btn').addEventListener('click', () => {
+      hideNotification(notification);
+    });
   }
 
   // 删除代理
@@ -753,14 +972,14 @@
       });
 
       if (response.ok) {
-        showMessage('代理删除成功', true);
+        showMessage('代理删除成功', 'success');
         currentProxy = null;
         updateProxyUI();
       } else {
         throw new Error('删除失败');
       }
     } catch (error) {
-      showMessage('删除失败: ' + error.message, false);
+      showMessage('删除失败: ' + error.message, 'error');
     }
   }
 
@@ -772,7 +991,7 @@
     const url = document.getElementById('proxyUrl').value.trim();
 
     if (!name || !url) {
-      showMessage('请填写完整的代理信息', false);
+      showMessage('请填写完整的代理信息', 'error');
       return;
     }
 
@@ -786,21 +1005,16 @@
       if (response.ok) {
         const result = await response.json();
         currentProxy = result.data;
-        showMessage('代理设置成功', true);
+        showMessage('代理设置成功', 'success');
         hideProxyForm();
         updateProxyUI();
       } else {
         throw new Error('保存代理失败');
       }
     } catch (error) {
-      showMessage('保存代理失败: ' + error.message, false);
+      showMessage('保存代理失败: ' + error.message, 'error');
     }
   });
-
-
-  // 初始化时加载代理
-  let currentProxy = null;
-
 
   // HTML转义
   function escapeHtml(unsafe) {
