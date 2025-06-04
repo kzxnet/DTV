@@ -233,6 +233,8 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       _isBuffering.value = true;
     });
 
+    _startControlsAutoHideTimer();
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
