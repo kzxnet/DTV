@@ -58,12 +58,19 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}
+          cache-path: ${{ env.FLUTTER_HOME }}
 
-      - name: Add Flutter to PATH
-        run: echo "${{ env.FLUTTER_HOME }}/bin" >> $GITHUB_PATH
+      - name: Verify Flutter installation
+        run: |
+          echo "FLUTTER_HOME: $FLUTTER_HOME"
+          ls -la $FLUTTER_HOME/bin
+          echo "$FLUTTER_HOME/bin" >> $GITHUB_PATH
+          cat $GITHUB_PATH
 
       - name: Verify Flutter
         run: |
+          which flutter || echo "Flutter not in PATH"
           flutter --version
           flutter precache --android
 
