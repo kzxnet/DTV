@@ -115,10 +115,19 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     }
   }
 
+  void _cleanupSeek() {
+    _isLongPressing = false;
+    _seekTimer?.cancel();
+    _seekTimer = null;
+    _speedIncreaseTimer?.cancel();
+    _speedIncreaseTimer = null;
+    _currentSeekSpeed = _seekStep;
+    _isSeeking.value = false;
+  }
+
   @override
   void dispose() {
-    _seekTimer?.cancel();
-    _speedIncreaseTimer?.cancel();
+    _cleanupSeek();
     _episodeProgress.clear();
     _controller.removeListener(_controllerListener);
     _controller.dispose();
@@ -141,7 +150,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     try {
       _controller = VideoPlayerController.networkUrl(Uri.parse(url));
 
-      // 添加缓冲状态监听
       _controller.addListener(() {
         if (_isBuffering.value != _controller.value.isBuffering) {
           _isBuffering.value = _controller.value.isBuffering;
@@ -225,7 +233,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       return;
     }
 
-    // 重置状态
     setState(() {
       _controlsVisibility.value = true;
       _isLoading = true;
@@ -282,7 +289,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     try {
       _controller = VideoPlayerController.networkUrl(Uri.parse(url));
 
-      // 确保添加缓冲监听
       _controller.addListener(() {
         if (_isBuffering.value != _controller.value.isBuffering) {
           _isBuffering.value = _controller.value.isBuffering;
@@ -362,10 +368,8 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     _isLongPressing = true;
     _currentSeekSpeed = _seekStep;
 
-    // Initial seek
     _handleSeek(step);
 
-    // Start periodic seeking
     _seekTimer?.cancel();
     _seekTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (_isLongPressing) {
@@ -375,7 +379,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       }
     });
 
-    // Start speed increase timer
     _speedIncreaseTimer?.cancel();
     _speedIncreaseTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       _currentSeekSpeed = (_currentSeekSpeed + _speedIncrement).clamp(
@@ -386,12 +389,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   }
 
   void _stopSeek(Duration step) {
-    _isLongPressing = false;
-    _seekTimer?.cancel();
-    _seekTimer = null;
-    _speedIncreaseTimer?.cancel();
-    _speedIncreaseTimer = null;
-    _currentSeekSpeed = _seekStep;
+    _cleanupSeek();
   }
 
   void _handleSeek(Duration duration) {
@@ -411,13 +409,9 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
-    final now = DateTime.now();
-    if (event is KeyRepeatEvent ||
-        (_lastKeyEventTime != null &&
-            now.difference(_lastKeyEventTime!) < const Duration(milliseconds: 50))) {
+    if (event is KeyRepeatEvent) {
       return KeyEventResult.handled;
     }
-    _lastKeyEventTime = now;
 
     if (event is KeyDownEvent) {
       return _handleKeyDown(event);
@@ -441,15 +435,19 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         _startSeek(-_seekStep);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowUp:
+        _stopSeek(Duration.zero);
         _changeEpisode(_currentEpisodeIndex - 1);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowDown:
+        _stopSeek(Duration.zero);
         _changeEpisode(_currentEpisodeIndex + 1);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.escape:
+        _stopSeek(Duration.zero);
         Navigator.pop(context);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.contextMenu:
+        _stopSeek(Duration.zero);
         return KeyEventResult.handled;
       default:
         return KeyEventResult.ignored;
@@ -457,14 +455,11 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   }
 
   KeyEventResult _handleKeyUp(KeyUpEvent event) {
-    switch (event.logicalKey) {
-      case LogicalKeyboardKey.arrowRight:
-      case LogicalKeyboardKey.arrowLeft:
-        _stopSeek(Duration.zero);
-        return KeyEventResult.handled;
-      default:
-        return KeyEventResult.ignored;
+    if (_isLongPressing) {
+      _stopSeek(Duration.zero);
+      return KeyEventResult.handled;
     }
+    return KeyEventResult.ignored;
   }
 
   @override
@@ -500,11 +495,9 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
           child: Stack(
             children: [
               _buildPlayerWidget(),
-              // 缓冲指示器
               ValueListenableBuilder<bool>(
                 valueListenable: _isBuffering,
                 builder: (context, buffering, child) {
-                  // Only show buffering indicator if video is initialized but buffering
                   if (!_controller.value.isInitialized) return const SizedBox();
                   return Visibility(
                     visible: buffering,
@@ -583,7 +576,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       focusNode: _playerFocusNode,
       onKeyEvent: _handleKeyEvent,
       child: Center(
-        child: _isLoading && !_controller.value.isInitialized // Only show for initial load
+        child: _isLoading && !_controller.value.isInitialized
             ? const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
