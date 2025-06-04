@@ -99,7 +99,7 @@ jobs:
           if [ "${{ github.event.inputs.build-type || 'apk' }}" = "appbundle" ]; then
             flutter build appbundle $FLUTTER_BUILD_ARGS
           else
-            flutter build apk $FLUTTER_BUILD_ARGS --split-per-abi --target-platform android-arm,android-arm64
+            flutter build apk $FLUTTER_BUILD_ARGS --split-per-abi --target-platform android-arm,android-arm64,android-x64
           fi
 
       - name: Sign APK (if build type is apk)
