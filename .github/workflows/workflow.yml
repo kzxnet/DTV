@@ -28,15 +28,18 @@ env:
   FLUTTER_VERSION: '3.32.1'
   ANDROID_BUILD_TOOLS: "34.0.0"
   GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
-  # 新增优化变量
+  # 修正后的优化变量
   GRADLE_BUILD_CACHE_ENABLED: "true"
-  GRADLE_BUILD_CACHE_DIR: "${{ runner.temp }}/gradle-build-cache"
   GRADLE_CONFIG_CACHE_ENABLED: "true"
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    env:
+      # 在工作流步骤中定义 runner.temp
+      GRADLE_BUILD_CACHE_DIR: "/tmp/gradle-build-cache"
 
     steps:
       - name: 检出代码
