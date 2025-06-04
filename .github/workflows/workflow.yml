@@ -28,7 +28,7 @@ env:
   FLUTTER_VERSION: '3.32.1'
   ANDROID_BUILD_TOOLS: "34.0.0"
   GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
-  GRADLE_BUILD_CACHE_DIR: "/tmp/gradle-build-cache"
+  FLUTTER_HOME: /opt/hostedtoolcache/flutter
 
 jobs:
   build-and-release:
@@ -41,12 +41,28 @@ jobs:
         with:
           fetch-depth: 1
 
+      # 优化Flutter SDK缓存
       - name: Cache Flutter SDK
         uses: actions/cache@v3
-        id: flutter-sdk-cache
+        id: flutter-cache
         with:
-          path: ~/flutter
-          key: flutter-sdk-${{ env.FLUTTER_VERSION }}
+          path: ${{ env.FLUTTER_HOME }}
+          key: flutter-${{ env.FLUTTER_VERSION }}
+          restore-keys: |
+            flutter-
+
+      - name: Set up Flutter (with cache check)
+        if: steps.flutter-cache.outputs.cache-hit != 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Verify Flutter
+        run: |
+          flutter --version
+          flutter precache --android
 
       - name: Cache Pub dependencies
         uses: actions/cache@v3
@@ -56,30 +72,11 @@ jobs:
             ~/.pub-cache
             .dart_tool
           key: pub-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
-
-      - name: Cache Gradle
-        uses: actions/cache@v3
-        id: gradle-cache
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            ${{ env.GRADLE_BUILD_CACHE_DIR }}
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/gradle-wrapper.properties') }}-${{ hashFiles('**/build.gradle') }}
           restore-keys: |
-            gradle-${{ runner.os }}-${{ hashFiles('**/gradle-wrapper.properties') }}
+            pub-${{ runner.os }}-
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
-          cache: false
-
-      - name: Install dependencies
-        run: |
-          flutter pub get
-          flutter precache --android
+      - name: Get dependencies
+        run: flutter pub get
 
       - name: Set up JDK
         uses: actions/setup-java@v3
@@ -95,7 +92,6 @@ jobs:
           platform-version: "34"
           ndk-version: "25.2.9519653"
           disable-animations: true
-          disable-license-packages: "cmake;lldb;ndk"
 
       - name: Configure Gradle properties
         run: |
@@ -107,17 +103,8 @@ jobs:
           android.enableJetifier=true
           EOF
 
-      - name: Create version tag (manual trigger only)
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: |
-          git config --global user.name "laopaoer-wallet"
-          git config --global user.email "laopaoer@protonmail.com"
-          git tag ${{ github.event.inputs.version-tag }}
-          git push origin ${{ github.event.inputs.version-tag }}
-
       - name: Build APK or App Bundle
         run: |
-          # 不需要手动调用gradlew clean，flutter build会自动处理
           export FLUTTER_BUILD_ARGS="--release --no-tree-shake-icons --verbose"
           if [ "${{ github.event.inputs.build-type || 'apk' }}" = "appbundle" ]; then
             flutter build appbundle $FLUTTER_BUILD_ARGS
