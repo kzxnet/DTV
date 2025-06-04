@@ -47,7 +47,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   final Map<int, Duration> _episodeProgress = {};
   Duration _currentSeekSpeed = const Duration(seconds: 10);
   final Duration _minSeekSpeed = const Duration(seconds: 10);
-  final Duration _maxSeekSpeed = const Duration(seconds: 60);
+  final Duration _maxSeekSpeed = const Duration(seconds: 300);
   final Duration _speedIncrement = const Duration(seconds: 10);
   Timer? _speedIncreaseTimer;
 
