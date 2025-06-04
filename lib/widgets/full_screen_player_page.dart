@@ -135,6 +135,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _isBuffering.value = true;
     });
 
     try {
@@ -142,7 +143,9 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
 
       // 添加缓冲状态监听
       _controller.addListener(() {
-        _isBuffering.value = _controller.value.isBuffering;
+        if (_isBuffering.value != _controller.value.isBuffering) {
+          _isBuffering.value = _controller.value.isBuffering;
+        }
       });
 
       await _controller.initialize();
@@ -190,6 +193,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         setState(() {
           _isLoading = false;
           _errorMessage = '播放失败: ${e.toString()}';
+          _isBuffering.value = false;
         });
       }
     }
@@ -221,14 +225,15 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       return;
     }
 
-    setState(() => _controlsVisibility.value = true);
-    _startControlsAutoHideTimer();
+    // 重置状态
+    setState(() {
+      _controlsVisibility.value = true;
+      _isLoading = true;
+      _errorMessage = null;
+      _isBuffering.value = true;
+    });
 
     if (mounted) {
-      setState(() {
-        _controlsVisibility.value = true;
-        _errorMessage = null;
-      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -252,6 +257,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       setState(() {
         _errorMessage = '无效的视频URL';
         _isLoading = false;
+        _isBuffering.value = false;
       });
       return;
     }
@@ -268,10 +274,19 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       _currentEpisodeIndex = index;
       _isLoading = true;
       _errorMessage = null;
+      _isBuffering.value = true;
     });
 
     try {
       _controller = VideoPlayerController.networkUrl(Uri.parse(url));
+
+      // 确保添加缓冲监听
+      _controller.addListener(() {
+        if (_isBuffering.value != _controller.value.isBuffering) {
+          _isBuffering.value = _controller.value.isBuffering;
+        }
+      });
+
       await _controller.initialize();
       _setupWakelockListener();
 
@@ -279,19 +294,34 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         await _controller.seekTo(_episodeProgress[_currentEpisodeIndex]!);
       }
 
-      _controller.addListener(() {
-        if (_controller.value.isPlaying) {
-          _episodeProgress[_currentEpisodeIndex] = _controller.value.position;
-        }
+      _controller.addListener(_controllerListener);
 
-        if (_controller.value.position >= _controller.value.duration &&
-            !_controller.value.isLooping) {
-          _playNextEpisode();
-        }
-      });
-
-      _chewieController = _chewieController!.copyWith(
+      _chewieController = ChewieController(
         videoPlayerController: _controller,
+        autoPlay: true,
+        looping: false,
+        allowFullScreen: false,
+        allowedScreenSleep: false,
+        showControls: false,
+        draggableProgressBar: false,
+        showControlsOnInitialize: false,
+        showOptions: false,
+        allowPlaybackSpeedChanging: false,
+        useRootNavigator: false,
+        materialProgressColors: ChewieProgressColors(
+          playedColor: const Color(0xFF0066FF),
+          handleColor: const Color(0xFF0066FF),
+          backgroundColor: Colors.grey,
+          bufferedColor: Colors.grey[300]!,
+        ),
+        errorBuilder: (context, errorMessage) {
+          return Center(
+            child: Text(
+              errorMessage,
+              style: const TextStyle(color: Colors.white, fontSize: 20),
+            ),
+          );
+        },
       );
 
       if (mounted) setState(() => _isLoading = false);
@@ -300,6 +330,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         setState(() {
           _isLoading = false;
           _errorMessage = '播放失败: ${e.toString()}';
+          _isBuffering.value = false;
         });
       }
       debugPrint('初始化播放器错误: $e');
@@ -471,8 +502,10 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
               ValueListenableBuilder<bool>(
                 valueListenable: _isBuffering,
                 builder: (context, buffering, child) {
+                  // Only show buffering indicator if video is initialized but buffering
+                  if (!_controller.value.isInitialized) return const SizedBox();
                   return Visibility(
-                    visible: buffering && !_isLoading,
+                    visible: buffering,
                     child: Center(
                       child: Container(
                         padding: const EdgeInsets.all(20),
@@ -480,15 +513,15 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                           color: Colors.black54,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Column(
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            CircularProgressIndicator(
+                            const CircularProgressIndicator(
                               strokeWidth: 3,
                               valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
-                            SizedBox(height: 10),
-                            Text(
+                            const SizedBox(height: 10),
+                            const Text(
                               '正在缓冲...',
                               style: TextStyle(color: Colors.white),
                             ),
@@ -548,7 +581,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       focusNode: _playerFocusNode,
       onKeyEvent: _handleKeyEvent,
       child: Center(
-        child: _isLoading
+        child: _isLoading && !_controller.value.isInitialized // Only show for initial load
             ? const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
