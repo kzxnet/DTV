@@ -41,16 +41,6 @@ jobs:
         with:
           fetch-depth: 1
 
-      # 优化Flutter SDK缓存
-      - name: Cache Flutter SDK
-        uses: actions/cache@v3
-        id: flutter-cache
-        with:
-          path: ${{ env.FLUTTER_HOME }}
-          key: flutter-${{ env.FLUTTER_VERSION }}
-          restore-keys: |
-            flutter-
-
       - name: Set up Flutter (with cache check)
         if: steps.flutter-cache.outputs.cache-hit != 'true'
         uses: subosito/flutter-action@v2
@@ -58,19 +48,9 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
-          cache-key: flutter-${{ env.FLUTTER_VERSION }}
-          cache-path: ${{ env.FLUTTER_HOME }}
-
-      - name: Verify Flutter installation
-        run: |
-          echo "FLUTTER_HOME: $FLUTTER_HOME"
-          ls -la $FLUTTER_HOME/bin
-          echo "$FLUTTER_HOME/bin" >> $GITHUB_PATH
-          cat $GITHUB_PATH
 
       - name: Verify Flutter
         run: |
-          which flutter || echo "Flutter not in PATH"
           flutter --version
           flutter precache --android
 
