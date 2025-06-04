@@ -23,11 +23,15 @@ class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   List<dynamic> _movies = [];
-  List<dynamic> _recommendations = []; // 新增：推荐列表
+  List<dynamic> _displayedMovies = []; // Only shows current page items
+  List<dynamic> _recommendations = [];
   bool _isLoading = false;
   bool _showSearchHint = true;
+  int _currentPage = 1;
+  int _itemsPerPage = 8;
+  bool _hasMore = true;
 
-  // 颜色方案
+  // Colors
   final Color _primaryColor = const Color(0xFF00C8FF);
   final Color _darkBackground = const Color(0xFF121212);
   final Color _cardBackground = const Color(0xFF1E1E1E);
@@ -39,10 +43,9 @@ class _SearchPageState extends State<SearchPage> {
     super.initState();
     _searchFocusNode.addListener(_onFocusChange);
     _searchController.addListener(_onSearchTextChange);
-    _fetchRecommendations(); // 新增：初始化时获取推荐
+    _fetchRecommendations();
   }
 
-  // 新增：获取推荐电影
   Future<void> _fetchRecommendations() async {
     try {
       final response = await _dio.get(
@@ -54,10 +57,7 @@ class _SearchPageState extends State<SearchPage> {
           'page_limit': '100',
           'page_start': '0',
         },
-        cancelToken:
-        _cancelToken.isCancelled
-            ? _cancelToken = CancelToken()
-            : _cancelToken,
+        cancelToken: _cancelToken.isCancelled ? _cancelToken = CancelToken() : _cancelToken,
       );
 
       log('获取推荐: ${response.data}');
@@ -72,7 +72,6 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
-  // 修改：点击推荐项进行搜索
   void _searchRecommendation(String title) {
     _searchController.text = title;
     _searchMovies(title);
@@ -101,21 +100,22 @@ class _SearchPageState extends State<SearchPage> {
     setState(() {
       _isLoading = true;
       _movies = [];
+      _displayedMovies = [];
+      _currentPage = 1;
+      _hasMore = true;
     });
 
     try {
       final response = await _dio.get(
         'http://localhost:8023/api/search',
         queryParameters: {'wd': keyword, 'limit': 100},
-        cancelToken:
-        _cancelToken.isCancelled
-            ? _cancelToken = CancelToken()
-            : _cancelToken,
+        cancelToken: _cancelToken.isCancelled ? _cancelToken = CancelToken() : _cancelToken,
       );
 
       if (response.statusCode == 200 && response.data['code'] == 1) {
         setState(() {
           _movies = response.data['list'] ?? [];
+          _updateDisplayedMovies();
         });
       }
     } catch (e) {
@@ -128,6 +128,44 @@ class _SearchPageState extends State<SearchPage> {
         });
       }
     }
+  }
+
+  void _updateDisplayedMovies() {
+    final startIndex = (_currentPage - 1) * _itemsPerPage;
+    final endIndex = startIndex + _itemsPerPage;
+
+    if (startIndex >= _movies.length) {
+      setState(() {
+        _hasMore = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _displayedMovies = _movies.sublist(
+        startIndex,
+        endIndex > _movies.length ? _movies.length : endIndex,
+      );
+      _hasMore = endIndex < _movies.length;
+    });
+  }
+
+  void _loadNextPage() {
+    if (!_hasMore) return;
+
+    setState(() {
+      _currentPage++;
+      _updateDisplayedMovies();
+    });
+  }
+
+  void _loadPreviousPage() {
+    if (_currentPage <= 1) return;
+
+    setState(() {
+      _currentPage--;
+      _updateDisplayedMovies();
+    });
   }
 
   void _showError(String message) {
@@ -157,12 +195,10 @@ class _SearchPageState extends State<SearchPage> {
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(32),
-            border:
-            _searchFocusNode.hasFocus
+            border: _searchFocusNode.hasFocus
                 ? Border.all(color: _primaryColor, width: 3)
                 : null,
-            boxShadow:
-            _searchFocusNode.hasFocus
+            boxShadow: _searchFocusNode.hasFocus
                 ? [
               BoxShadow(
                 color: _primaryColor.withAlpha((255 * 0.3).toInt()),
@@ -179,7 +215,6 @@ class _SearchPageState extends State<SearchPage> {
                   padding: const EdgeInsets.only(left: 24),
                   child: TextField(
                     focusNode: _searchFocusNode,
-                    // 关键：给TextField传递FocusNode
                     controller: _searchController,
                     style: TextStyle(
                       fontSize: 24,
@@ -205,16 +240,14 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  // ... existing code ...
-
   Widget _buildSearchButton() {
     return Row(
       children: [
-        // 搜索按钮
         Focus(
           onKeyEvent: (node, event) {
             if (event is KeyDownEvent &&
-                event.logicalKey == LogicalKeyboardKey.select) {
+                (event.logicalKey == LogicalKeyboardKey.select ||
+                    event.logicalKey == LogicalKeyboardKey.enter)) {
               _searchMovies(_searchController.text.trim());
               return KeyEventResult.handled;
             }
@@ -267,11 +300,11 @@ class _SearchPageState extends State<SearchPage> {
             },
           ),
         ),
-        // 管理按钮
         Focus(
           onKeyEvent: (node, event) {
             if (event is KeyDownEvent &&
-                event.logicalKey == LogicalKeyboardKey.select) {
+                (event.logicalKey == LogicalKeyboardKey.select ||
+                    event.logicalKey == LogicalKeyboardKey.enter)) {
               _showQRCodeDialog();
               return KeyEventResult.handled;
             }
@@ -328,9 +361,8 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  final NetworkInfo _networkInfo = NetworkInfo(); // 添加这行
+  final NetworkInfo _networkInfo = NetworkInfo();
 
-  // 新增：获取本地IP地址
   Future<String> _getLocalIp() async {
     try {
       final interfaces = await NetworkInterface.list();
@@ -348,7 +380,6 @@ class _SearchPageState extends State<SearchPage> {
     }
   }
 
-// 新增：显示二维码对话框
   void _showQRCodeDialog() async {
     final ip = await _getLocalIp();
     final url = 'http://$ip:8023';
@@ -392,8 +423,6 @@ class _SearchPageState extends State<SearchPage> {
       ),
     );
   }
-
-// ... existing code ...
 
   Widget _buildContent() {
     if (_isLoading) {
@@ -447,7 +476,6 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
             const SizedBox(height: 32),
-            // 新增：推荐列表标题
             Text(
               '热门推荐',
               style: TextStyle(
@@ -457,7 +485,6 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
             const SizedBox(height: 16),
-            // 新增：推荐列表
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -508,48 +535,385 @@ class _SearchPageState extends State<SearchPage> {
       );
     }
 
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
-            child: Row(
-              children: [
-                Text(
-                  '搜索结果 (${_movies.length})',
-                  style: TextStyle(
-                    fontSize: 22,
-                    color: _textColor.withAlpha((255 * 0.8).toInt()),
+    return Column(
+      children: [
+        Expanded(
+          child: NotificationListener<ScrollNotification>(
+            onNotification: (scrollNotification) {
+              if (scrollNotification is ScrollEndNotification &&
+                  scrollNotification.metrics.pixels ==
+                      scrollNotification.metrics.maxScrollExtent &&
+                  _hasMore) {
+                _loadNextPage();
+              }
+              return false;
+            },
+            child: CustomScrollView(
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
+                  sliver: SliverToBoxAdapter(
+                    child: Row(
+                      children: [
+                        Text(
+                          '搜索结果 (${_movies.length})',
+                          style: TextStyle(
+                            fontSize: 22,
+                            color: _textColor.withAlpha((255 * 0.8).toInt()),
+                          ),
+                        ),
+                        Spacer(),
+                        Text(
+                          '第 $_currentPage 页',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: _hintColor,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 8),
+                  sliver: SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      childAspectRatio: 0.7,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                        final movie = _displayedMovies[index];
+                        return _buildMovieCard(movie);
+                      },
+                      childCount: _displayedMovies.length,
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: _buildPaginationControls(),
                 ),
               ],
             ),
           ),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 8),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4, // 4 items per row
-              childAspectRatio: 0.7, // Adjusted aspect ratio
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
+        ),
+      ],
+    );
+  }
+
+  // Add this method to build the pagination controls
+  Widget _buildPaginationControls() {
+    final totalPages = (_movies.length / _itemsPerPage).ceil();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        children: [
+          Text(
+            '第 $_currentPage 页 / 共 $totalPages 页',
+            style: TextStyle(
+              fontSize: 18,
+              color: _textColor.withOpacity(0.8),
             ),
-            itemCount: _movies.length,
-            itemBuilder: (context, index) {
-              final movie = _movies[index];
-              return _buildMovieCard(movie);
-            },
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // First Page Button
+              Focus(
+                onKeyEvent: (node, event) {
+                  if (event is KeyDownEvent &&
+                      (event.logicalKey == LogicalKeyboardKey.select ||
+                          event.logicalKey == LogicalKeyboardKey.enter)) {
+                    if (_currentPage > 1) {
+                      setState(() {
+                        _currentPage = 1;
+                        _updateDisplayedMovies();
+                      });
+                    }
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: Builder(
+                  builder: (context) {
+                    final hasFocus = Focus.of(context).hasFocus;
+                    final isEnabled = _currentPage > 1;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: isEnabled
+                            ? (hasFocus ? _primaryColor : const Color(0xFF333333))
+                            : const Color(0xFF222222),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: hasFocus && isEnabled
+                            ? [
+                          BoxShadow(
+                            color: _primaryColor.withAlpha(255 ~/ 2),
+                            blurRadius: 12,
+                            spreadRadius: 2,
+                          ),
+                        ]
+                            : null,
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(24),
+                        onTap: isEnabled
+                            ? () {
+                          setState(() {
+                            _currentPage = 1;
+                            _updateDisplayedMovies();
+                          });
+                        }
+                            : null,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.first_page,
+                                  size: 24,
+                                  color: isEnabled ? Colors.white : _hintColor),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // Previous Page Button
+              Focus(
+                onKeyEvent: (node, event) {
+                  if (event is KeyDownEvent &&
+                      (event.logicalKey == LogicalKeyboardKey.select ||
+                          event.logicalKey == LogicalKeyboardKey.enter)) {
+                    _loadPreviousPage();
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: Builder(
+                  builder: (context) {
+                    final hasFocus = Focus.of(context).hasFocus;
+                    final isEnabled = _currentPage > 1;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: isEnabled
+                            ? (hasFocus ? _primaryColor : const Color(0xFF333333))
+                            : const Color(0xFF222222),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: hasFocus && isEnabled
+                            ? [
+                          BoxShadow(
+                            color: _primaryColor.withAlpha(255 ~/ 2),
+                            blurRadius: 12,
+                            spreadRadius: 2,
+                          ),
+                        ]
+                            : null,
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(24),
+                        onTap: isEnabled ? _loadPreviousPage : null,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.arrow_back,
+                                  size: 24,
+                                  color: isEnabled ? Colors.white : _hintColor),
+                              const SizedBox(width: 8),
+                              Text(
+                                '上一页',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: isEnabled ? Colors.white : _hintColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // Current Page Indicator (non-interactive)
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: _cardBackground,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: Text(
+                  '$_currentPage',
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: _primaryColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+
+              // Next Page Button
+              Focus(
+                onKeyEvent: (node, event) {
+                  if (event is KeyDownEvent &&
+                      (event.logicalKey == LogicalKeyboardKey.select ||
+                          event.logicalKey == LogicalKeyboardKey.enter)) {
+                    _loadNextPage();
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: Builder(
+                  builder: (context) {
+                    final hasFocus = Focus.of(context).hasFocus;
+                    final isEnabled = _hasMore;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: isEnabled
+                            ? (hasFocus ? _primaryColor : const Color(0xFF333333))
+                            : const Color(0xFF222222),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: hasFocus && isEnabled
+                            ? [
+                          BoxShadow(
+                            color: _primaryColor.withAlpha(255 ~/ 2),
+                            blurRadius: 12,
+                            spreadRadius: 2,
+                          ),
+                        ]
+                            : null,
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(24),
+                        onTap: isEnabled ? _loadNextPage : null,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                '下一页',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: isEnabled ? Colors.white : _hintColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Icon(Icons.arrow_forward,
+                                  size: 24,
+                                  color: isEnabled ? Colors.white : _hintColor),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // Last Page Button
+              Focus(
+                onKeyEvent: (node, event) {
+                  if (event is KeyDownEvent &&
+                      (event.logicalKey == LogicalKeyboardKey.select ||
+                          event.logicalKey == LogicalKeyboardKey.enter)) {
+                    if (_hasMore) {
+                      final totalPages = (_movies.length / _itemsPerPage).ceil();
+                      setState(() {
+                        _currentPage = totalPages;
+                        _updateDisplayedMovies();
+                      });
+                    }
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: Builder(
+                  builder: (context) {
+                    final hasFocus = Focus.of(context).hasFocus;
+                    final isEnabled = _hasMore;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: isEnabled
+                            ? (hasFocus ? _primaryColor : const Color(0xFF333333))
+                            : const Color(0xFF222222),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: hasFocus && isEnabled
+                            ? [
+                          BoxShadow(
+                            color: _primaryColor.withAlpha(255 ~/ 2),
+                            blurRadius: 12,
+                            spreadRadius: 2,
+                          ),
+                        ]
+                            : null,
+                      ),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(24),
+                        onTap: isEnabled
+                            ? () {
+                          final totalPages = (_movies.length / _itemsPerPage).ceil();
+                          setState(() {
+                            _currentPage = totalPages;
+                            _updateDisplayedMovies();
+                          });
+                        }
+                            : null,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.last_page,
+                                  size: 24,
+                                  color: isEnabled ? Colors.white : _hintColor),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  // 新增：推荐卡片组件
   Widget _buildRecommendationCard(Map<String, dynamic> movie) {
-    // log('${movie['cover']}');
-
     return Focus(
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
@@ -568,8 +932,7 @@ class _SearchPageState extends State<SearchPage> {
             margin: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              boxShadow:
-              hasFocus
+              boxShadow: hasFocus
                   ? [
                 BoxShadow(
                   color: _primaryColor.withAlpha((255 * 0.4).toInt()),
@@ -588,8 +951,7 @@ class _SearchPageState extends State<SearchPage> {
             child: Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side:
-                hasFocus
+                side: hasFocus
                     ? BorderSide(color: _primaryColor, width: 3)
                     : BorderSide.none,
               ),
@@ -612,8 +974,7 @@ class _SearchPageState extends State<SearchPage> {
                         },
                         imageUrl: movie['cover'] ?? '',
                         fit: BoxFit.cover,
-                        placeholder:
-                            (_, __) => Center(
+                        placeholder: (_, __) => Center(
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation(
@@ -621,8 +982,7 @@ class _SearchPageState extends State<SearchPage> {
                             ),
                           ),
                         ),
-                        errorWidget:
-                            (_, __, ___) => Center(
+                        errorWidget: (_, __, ___) => Center(
                           child: Icon(
                             Icons.broken_image,
                             size: 48,
@@ -673,8 +1033,7 @@ class _SearchPageState extends State<SearchPage> {
             margin: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
-              boxShadow:
-              hasFocus
+              boxShadow: hasFocus
                   ? [
                 BoxShadow(
                   color: _primaryColor.withAlpha((255 * 0.4).toInt()),
@@ -693,8 +1052,7 @@ class _SearchPageState extends State<SearchPage> {
             child: Card(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side:
-                hasFocus
+                side: hasFocus
                     ? BorderSide(color: _primaryColor, width: 3)
                     : BorderSide.none,
               ),
@@ -707,7 +1065,6 @@ class _SearchPageState extends State<SearchPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Poster image (adaptive width)
                     Expanded(
                       child: Container(
                         decoration: BoxDecoration(
@@ -723,8 +1080,7 @@ class _SearchPageState extends State<SearchPage> {
                           child: CachedNetworkImage(
                             imageUrl: movie['vod_pic'] ?? '',
                             fit: BoxFit.cover,
-                            placeholder:
-                                (_, __) => Center(
+                            placeholder: (_, __) => Center(
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation(
@@ -732,8 +1088,7 @@ class _SearchPageState extends State<SearchPage> {
                                 ),
                               ),
                             ),
-                            errorWidget:
-                                (_, __, ___) => Center(
+                            errorWidget: (_, __, ___) => Center(
                               child: Icon(
                                 Icons.broken_image,
                                 size: 48,
@@ -744,15 +1099,12 @@ class _SearchPageState extends State<SearchPage> {
                         ),
                       ),
                     ),
-
-                    // Movie details
                     Padding(
                       padding: const EdgeInsets.all(12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.max,
                         children: [
-                          // Title
                           Text(
                             movie['vod_name'] ?? '未知标题',
                             style: TextStyle(
@@ -764,13 +1116,9 @@ class _SearchPageState extends State<SearchPage> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 8),
-
-                          // Year, Type, and Source in one line
                           Row(
                             children: [
-                              // Year
-                              if (movie['vod_year']?.toString().isNotEmpty ??
-                                  false)
+                              if (movie['vod_year']?.toString().isNotEmpty ?? false)
                                 Flexible(
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(
@@ -792,10 +1140,7 @@ class _SearchPageState extends State<SearchPage> {
                                     ),
                                   ),
                                 ),
-
-                              // Type
-                              if (movie['type_name']?.toString().isNotEmpty ??
-                                  false) ...[
+                              if (movie['type_name']?.toString().isNotEmpty ?? false) ...[
                                 const SizedBox(width: 6),
                                 Flexible(
                                   child: Text(
@@ -807,12 +1152,7 @@ class _SearchPageState extends State<SearchPage> {
                                   ),
                                 ),
                               ],
-
-                              // Source (vod_play_from)
-                              if (movie['vod_play_from']
-                                  ?.toString()
-                                  .isNotEmpty ??
-                                  false) ...[
+                              if (movie['vod_play_from']?.toString().isNotEmpty ?? false) ...[
                                 const SizedBox(width: 6),
                                 Flexible(
                                   child: Text(
@@ -831,8 +1171,6 @@ class _SearchPageState extends State<SearchPage> {
                         ],
                       ),
                     ),
-
-                    // Focus indicator
                     if (hasFocus)
                       Container(
                         height: 4,
@@ -863,13 +1201,9 @@ class _SearchPageState extends State<SearchPage> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop:
-      !_searchFocusNode.hasFocus &&
-          _searchController.text.isEmpty,
+      canPop: !_searchFocusNode.hasFocus && _searchController.text.isEmpty,
       onPopInvokedWithResult: (didPop, result) {
-        log(
-          'Pop invoked with result: $didPop, $result',
-        );
+        log('Pop invoked with result: $didPop, $result');
         if (!didPop) {
           _cancelToken.cancel();
           if (_searchFocusNode.hasFocus) {
@@ -877,7 +1211,10 @@ class _SearchPageState extends State<SearchPage> {
           } else if (_searchController.text.isNotEmpty) {
             setState(() {
               _movies.clear();
+              _displayedMovies.clear();
               _searchController.clear();
+              _currentPage = 1;
+              _hasMore = true;
             });
           } else {
             Navigator.maybePop(context);
