@@ -40,6 +40,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   final ValueNotifier<bool> _controlsVisibility = ValueNotifier(true);
   final FocusNode _playerFocusNode = FocusNode();
   final ValueNotifier<bool> _isSeeking = ValueNotifier(false);
+  final ValueNotifier<bool> _isBuffering = ValueNotifier(false);
   final Duration _seekStep = const Duration(seconds: 10);
   Timer? _seekTimer;
   bool _isLongPressing = false;
@@ -125,6 +126,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     _playerFocusNode.dispose();
     _controlsVisibility.dispose();
     _isSeeking.dispose();
+    _isBuffering.dispose();
     WakelockPlus.disable().ignore();
     super.dispose();
   }
@@ -137,6 +139,12 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
 
     try {
       _controller = VideoPlayerController.networkUrl(Uri.parse(url));
+
+      // 添加缓冲状态监听
+      _controller.addListener(() {
+        _isBuffering.value = _controller.value.isBuffering;
+      });
+
       await _controller.initialize();
       _setupWakelockListener();
       _controller.addListener(_controllerListener);
@@ -459,6 +467,38 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
           child: Stack(
             children: [
               _buildPlayerWidget(),
+              // 缓冲指示器
+              ValueListenableBuilder<bool>(
+                valueListenable: _isBuffering,
+                builder: (context, buffering, child) {
+                  return Visibility(
+                    visible: buffering && !_isLoading,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(
+                              strokeWidth: 3,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                            SizedBox(height: 10),
+                            Text(
+                              '正在缓冲...',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
               ValueListenableBuilder<bool>(
                 valueListenable: _controlsVisibility,
                 builder: (context, visible, child) {
@@ -509,9 +549,33 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       onKeyEvent: _handleKeyEvent,
       child: Center(
         child: _isLoading
-            ? const CircularProgressIndicator(strokeWidth: 3)
+            ? const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(strokeWidth: 3),
+            SizedBox(height: 16),
+            Text(
+              '正在加载视频...',
+              style: TextStyle(color: Colors.white),
+            ),
+          ],
+        )
             : _errorMessage != null
-            ? Text(_errorMessage!, style: const TextStyle(color: Colors.white))
+            ? Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _errorMessage!,
+              style: const TextStyle(color: Colors.white, fontSize: 18),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => _initializePlayer(widget.episodes[_currentEpisodeIndex]['url']!),
+              child: const Text('重试'),
+            ),
+          ],
+        )
             : Chewie(controller: _chewieController!),
       ),
     );
