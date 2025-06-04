@@ -117,9 +117,7 @@ jobs:
 
       - name: Build APK or App Bundle
         run: |
-          # Clean and build
-          ./gradlew clean
-          
+          # 不需要手动调用gradlew clean，flutter build会自动处理
           export FLUTTER_BUILD_ARGS="--release --no-tree-shake-icons --verbose"
           if [ "${{ github.event.inputs.build-type || 'apk' }}" = "appbundle" ]; then
             flutter build appbundle $FLUTTER_BUILD_ARGS
