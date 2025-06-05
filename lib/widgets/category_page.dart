@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 void main() {
   runApp(MovieHeavenApp());
@@ -42,10 +45,9 @@ class _MovieHomePageState extends State<MovieHomePage> {
   final Dio _dio = Dio();
   int _selectedTab = 0;
   bool _isLoading = false;
-  final List<String> _tabs = [
-    '全部', '动作', '喜剧', '科幻', '恐怖', '爱情', '悬疑', '动画', '纪录片', '战争', '港剧'
+  final List<String> _tabs = ['动作', '喜剧', '科幻', '恐怖', '爱情', '悬疑', '动画', '纪录片', '战争', '港剧'
   ];
-  List<MovieCategory> _categories = [];
+  List<Movie> _movies = [];
 
   @override
   void initState() {
@@ -67,7 +69,7 @@ class _MovieHomePageState extends State<MovieHomePage> {
         'https://movie.douban.com/j/search_subjects',
         queryParameters: {
           'type': 'movie',
-          'tag': tag == '全部' ? null : tag,
+          'tag': tag,
           'sort': 'recommend',
           'page_limit': '20',
           'page_start': '0',
@@ -91,50 +93,11 @@ class _MovieHomePageState extends State<MovieHomePage> {
         }).toList();
 
         setState(() {
-          _categories = [
-            MovieCategory(
-              title: '热门${tag == '全部' ? '电影' : tag}',
-              movies: movies,
-            ),
-            MovieCategory(
-              title: '最新上映',
-              movies: movies.take(3).toList(), // 示例数据，实际应用中可能需要单独获取
-            ),
-          ];
+          _movies = movies;
         });
       }
     } catch (e) {
       debugPrint('获取电影失败: $e');
-      // 使用模拟数据作为后备
-      setState(() {
-        _categories = [
-          MovieCategory(
-            title: '热门${tag == '全部' ? '电影' : tag}',
-            movies: [
-              Movie(
-                id: '1',
-                title: '${tag}电影1',
-                year: 2023,
-                rating: 8.0,
-                coverUrl: 'https://img2.doubanio.com/view/photo/s_ratio_poster/public/p2889473373.webp',
-                playable: true,
-                isNew: true,
-                url: 'https://movie.douban.com/subject/1/',
-              ),
-              Movie(
-                id: '2',
-                title: '${tag}电影2',
-                year: 2023,
-                rating: 7.5,
-                coverUrl: 'https://img2.doubanio.com/view/photo/s_ratio_poster/public/p2889473373.webp',
-                playable: false,
-                isNew: false,
-                url: 'https://movie.douban.com/subject/2/',
-              ),
-            ],
-          ),
-        ];
-      });
     } finally {
       setState(() => _isLoading = false);
     }
@@ -165,12 +128,9 @@ class _MovieHomePageState extends State<MovieHomePage> {
               Expanded(child: Center(child: CircularProgressIndicator()))
             else
               Expanded(
-                child: ListView.builder(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  itemCount: _categories.length,
-                  itemBuilder: (context, index) {
-                    return _buildMovieSection(_categories[index]);
-                  },
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  child: _buildMovieGrid(),
                 ),
               ),
           ],
@@ -179,22 +139,74 @@ class _MovieHomePageState extends State<MovieHomePage> {
     );
   }
 
+  Future<String> _getLocalIp() async {
+    try {
+      final interfaces = await NetworkInterface.list();
+      for (var interface in interfaces) {
+        for (var addr in interface.addresses) {
+          if (!addr.isLoopback && addr.type == InternetAddressType.IPv4) {
+            return addr.address;
+          }
+        }
+      }
+      return '127.0.0.1';
+    } catch (e) {
+      debugPrint('获取IP失败: $e');
+      return '127.0.0.1';
+    }
+  }
+
+  void _showQRCodeDialog() async {
+    final ip = await _getLocalIp();
+    final url = 'http://$ip:8023';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.black,
+        title: Text('扫描二维码管理', style: TextStyle(color: Colors.white,),textAlign: TextAlign.center,),
+        content: Container(
+          width: 300,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              QrImageView(
+                data: url,
+                version: QrVersions.auto,
+                size: 200.0,
+                backgroundColor: Colors.white,
+              ),
+              SizedBox(height: 16),
+              Text(url, style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('关闭', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAppBar() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
-      color: Color(0xFF0D0D0D),
+      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      color: Color(0xFF1A1A1A),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           IconButton(
             icon: Icon(Icons.search, size: 20),
             onPressed: () {},
-            focusColor: Colors.red,
+            padding: EdgeInsets.zero,
           ),
-          SizedBox(width: 10),
+          SizedBox(width: 5),
           IconButton(
             icon: Icon(Icons.settings, size: 20),
-            onPressed: () {},
+            onPressed: _showQRCodeDialog,  // 修改这里
             focusColor: Colors.red,
           ),
         ],
@@ -204,35 +216,71 @@ class _MovieHomePageState extends State<MovieHomePage> {
 
   Widget _buildTabBar() {
     return Container(
-      height: 60,
+      height: 70, // 进一步增加高度
+      padding: EdgeInsets.symmetric(vertical: 12),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: 10),
+        padding: EdgeInsets.symmetric(horizontal: 30), // 增加水平内边距
         itemCount: _tabs.length,
         itemBuilder: (context, index) {
           return Padding(
-            padding: EdgeInsets.symmetric(horizontal: 5),
+            padding: EdgeInsets.symmetric(horizontal: 10),
             child: Focus(
+              autofocus: index == _selectedTab,
               onFocusChange: (hasFocus) {
                 if (hasFocus) {
                   setState(() => _selectedTab = index);
                   _fetchMovies(_tabs[index]);
                 }
               },
-              child: ActionChip(
-                label: Text(
-                  _tabs[index],
-                  style: TextStyle(
-                    color: _selectedTab == index ? Colors.white : Colors.grey,
-                    fontWeight: _selectedTab == index ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-                backgroundColor: _selectedTab == index ? Colors.red : Color(0xFF333333),
-                padding: EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-                shape: StadiumBorder(),
-                onPressed: () {
-                  setState(() => _selectedTab = index);
-                  _fetchMovies(_tabs[index]);
+              child: Builder(
+                builder: (context) {
+                  final isFocused = Focus.of(context).hasFocus;
+                  return AnimatedContainer(
+                    duration: Duration(milliseconds: 200),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 24, // 增加水平内边距
+                      vertical: 12,  // 增加垂直内边距
+                    ),
+                    constraints: BoxConstraints(
+                      minWidth: 100, // 设置最小宽度
+                    ),
+                    decoration: BoxDecoration(
+                      color: _selectedTab == index
+                          ? Colors.red
+                          : Color(0xFF333333),
+                      borderRadius: BorderRadius.circular(35), // 增大圆角
+                      border: isFocused
+                          ? Border.all(color: Colors.white, width: 2) // 加粗边框
+                          : null,
+                      boxShadow: isFocused
+                          ? [
+                        BoxShadow(
+                          color: Colors.white.withOpacity(0.4),
+                          blurRadius: 15,
+                          spreadRadius: 3,
+                        )
+                      ]
+                          : [],
+                    ),
+                    child: Center(
+                      child: Text(
+                        _tabs[index],
+                        style: TextStyle(
+                          color: _selectedTab == index
+                              ? Colors.white
+                              : Colors.grey,
+                          fontWeight: _selectedTab == index
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          fontSize: 20, // 进一步增大字体
+                          height: 1.2, // 调整行高
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.visible, // 确保文本不会被裁剪
+                      ),
+                    ),
+                  );
                 },
               ),
             ),
@@ -242,157 +290,21 @@ class _MovieHomePageState extends State<MovieHomePage> {
     );
   }
 
-  Widget _buildMovieSection(MovieCategory category) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: EdgeInsets.only(bottom: 15),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  category.title,
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                Focus(
-                  child: TextButton(
-                    child: Row(
-                      children: [
-                        Text('更多', style: TextStyle(color: Colors.grey)),
-                        Icon(Icons.chevron_right, size: 16, color: Colors.grey),
-                      ],
-                    ),
-                    onPressed: () {},
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            height: 300,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: category.movies.length,
-              itemBuilder: (context, index) {
-                final movie = category.movies[index];
-                return Focus(
-                  onFocusChange: (hasFocus) {
-                    if (hasFocus) {
-                      // 可以添加聚焦时的动画效果
-                    }
-                  },
-                  child: Padding(
-                    padding: EdgeInsets.only(right: 15),
-                    child: _buildMovieCard(movie),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+  Widget _buildMovieGrid() {
+    return GridView.builder(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 5,
+        childAspectRatio: 0.65, // 调整为更适合电视的宽高比
+        mainAxisSpacing: 30, // 增加行间距
+        crossAxisSpacing: 30, // 增加列间距
       ),
+      itemCount: _movies.length,
+      itemBuilder: (context, index) {
+        return FocusableMovieCard(movie: _movies[index]);
+      },
+      padding: EdgeInsets.all(10),
     );
   }
-
-  Widget _buildMovieCard(Movie movie) {
-    return Container(
-      width: 200,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(8),
-                topRight: Radius.circular(8),
-                // 左下和右下不设置圆角
-                bottomLeft: Radius.zero,
-                bottomRight: Radius.zero,
-              ),
-              child: movie.coverUrl != null
-                  ? CachedNetworkImage(
-                      httpHeaders: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                        'Accept': 'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-                      },
-                      imageUrl: movie.coverUrl!,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      placeholder: (context, url) => Container(
-                        color: Color(0xFF333333),
-                        child: Center(
-                          child: CircularProgressIndicator(),
-                        ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: Color(0xFF333333),
-                        child: Center(
-                          child: Icon(Icons.broken_image, color: Colors.grey),
-                        ),
-                      ),
-                    )
-                : Container(
-                    color: Color(0xFF333333),
-                    child: Center(
-                      child: Text(
-                        movie.title.split(' ').first,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white, fontSize: 16),
-                      ),
-                    ),
-                  ),
-          ),
-        ),
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4), // Reduced vertical padding
-          color: Color(0xFF262626),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                movie.title,
-                style: Theme.of(context).textTheme.bodyMedium,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              SizedBox(height: 2), // Reduced spacing
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${movie.year}',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  Row(
-                    children: [
-                      Icon(Icons.star, size: 14, color: Colors.amber),
-                      SizedBox(width: 2), // Reduced spacing
-                      Text(
-                        '${movie.rating}',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.amber),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-  }
-}
-
-class MovieCategory {
-  final String title;
-  final List<Movie> movies;
-
-  MovieCategory({required this.title, required this.movies});
 }
 
 class Movie {
@@ -415,4 +327,154 @@ class Movie {
     required this.isNew,
     required this.url,
   });
+}
+
+class FocusableMovieCard extends StatefulWidget {
+  final Movie movie;
+
+  const FocusableMovieCard({Key? key, required this.movie}) : super(key: key);
+
+  @override
+  _FocusableMovieCardState createState() => _FocusableMovieCardState();
+}
+
+class _FocusableMovieCardState extends State<FocusableMovieCard> {
+  bool _isFocused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      onFocusChange: (hasFocus) {
+        setState(() => _isFocused = hasFocus);
+      },
+      child: AnimatedScale(
+        duration: Duration(milliseconds: 150),
+        scale: _isFocused ? 1.02 : 1.0, // 增大焦点时的缩放比例
+        child: AnimatedContainer(
+          duration: Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12), // 增大圆角
+            boxShadow: _isFocused
+                ? [
+              BoxShadow(
+                color: Colors.white.withOpacity(0.5), // 更亮的阴影
+                blurRadius: 20, // 更大的模糊半径
+                spreadRadius: 4, // 更大的扩散半径
+              )
+            ]
+                : [],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 图片部分
+              Expanded(
+                flex: 3, // 调整比例，给信息部分更多空间
+                child: ClipRRect(
+                  borderRadius: BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12)),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Color(0xFF262626),
+                    ),
+                    child: widget.movie.coverUrl != null
+                        ? CachedNetworkImage(
+                      imageUrl: widget.movie.coverUrl!,
+                      httpHeaders: {
+                        'User-Agent':
+                        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept':
+                        'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                      },
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      placeholder: (context, url) => Container(
+                        color: Color(0xFF333333),
+                        child: Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 3.0, // 更粗的进度指示器
+                            )),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        color: Color(0xFF333333),
+                        child: Center(
+                            child: Icon(Icons.broken_image,
+                                color: Colors.grey, size: 36)), // 更大的图标
+                      ),
+                    )
+                        : Container(
+                      color: Color(0xFF333333),
+                      child: Center(
+                        child: Text(
+                          widget.movie.title.split(' ').first,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 24, // 更大的字体
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // 信息部分
+              Expanded(
+                flex: 1, // 信息部分比例不变
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8), // 更大的内边距
+                  decoration: BoxDecoration(
+                    color: Color(0xFF262626),
+                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.movie.title,
+                        style: TextStyle(
+                          fontSize: 20, // 更大的标题字体
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: 6), // 更大的间距
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${widget.movie.year}',
+                            style: TextStyle(
+                              fontSize: 18, // 更大的年份字体
+                              color: Colors.grey,
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              Icon(Icons.star, size: 20, color: Colors.amber), // 更大的星标
+                              SizedBox(width: 8), // 更大的间距
+                              Text(
+                                '${widget.movie.rating}',
+                                style: TextStyle(
+                                  fontSize: 18, // 更大的评分字体
+                                  color: Colors.amber,
+                                  fontWeight: FontWeight.bold, // 加粗评分
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
