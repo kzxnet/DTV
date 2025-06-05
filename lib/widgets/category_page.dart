@@ -2,12 +2,15 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:libretv_app/widgets/search_page.dart';
 
 class MovieHomePage extends StatefulWidget {
+  const MovieHomePage({super.key});
+
   @override
-  _MovieHomePageState createState() => _MovieHomePageState();
+  State<MovieHomePage> createState() => _MovieHomePageState();
 }
 
 class _MovieHomePageState extends State<MovieHomePage> {
@@ -161,29 +164,26 @@ class _MovieHomePageState extends State<MovieHomePage> {
   }
 
   Widget _buildAppBar() {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          IconButton(
-            icon: Icon(Icons.search, size: 20),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => SearchPage()),
-              );
-            },
-            focusColor: Colors.red,
-          ),
-          SizedBox(width: 10),
-          IconButton(
-            icon: Icon(Icons.settings, size: 20),
-            onPressed: _showQRCodeDialog,
-            focusColor: Colors.red,
-          ),
-        ],
-      ),
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        IconButton(
+          icon: Icon(Icons.search, size: 20),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => SearchPage()),
+            );
+          },
+          focusColor: Colors.red,
+        ),
+        SizedBox(width: 10),
+        IconButton(
+          icon: Icon(Icons.settings, size: 20),
+          onPressed: _showQRCodeDialog,
+          focusColor: Colors.red,
+        ),
+      ],
     );
   }
 
@@ -305,34 +305,54 @@ class Movie {
 class FocusableMovieCard extends StatefulWidget {
   final Movie movie;
 
-  const FocusableMovieCard({Key? key, required this.movie}) : super(key: key);
+  const FocusableMovieCard({super.key, required this.movie});
 
   @override
-  _FocusableMovieCardState createState() => _FocusableMovieCardState();
+  State<FocusableMovieCard> createState() => _FocusableMovieCardState();
 }
 
 class _FocusableMovieCardState extends State<FocusableMovieCard> {
   bool _isFocused = false;
 
   @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+                event.logicalKey == LogicalKeyboardKey.enter)) {
+          // Navigate to SearchPage with movie title as initial query
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SearchPage(initialQuery: widget.movie.title),
+            ),
+          );
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
       onFocusChange: (hasFocus) {
         setState(() => _isFocused = hasFocus);
       },
       child: AnimatedScale(
         duration: Duration(milliseconds: 150),
-        scale: _isFocused ? 1.02 : 1.0, // 增大焦点时的缩放比例
+        scale: _isFocused ? 1.02 : 1.0,
         child: AnimatedContainer(
           duration: Duration(milliseconds: 150),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12), // 增大圆角
+            borderRadius: BorderRadius.circular(12),
             boxShadow: _isFocused
                 ? [
               BoxShadow(
-                color: Colors.white.withOpacity(0.5), // 更亮的阴影
-                blurRadius: 20, // 更大的模糊半径
-                spreadRadius: 4, // 更大的扩散半径
+                color: Colors.white.withOpacity(0.5),
+                blurRadius: 20,
+                spreadRadius: 4,
               )
             ]
                 : [],
@@ -340,11 +360,12 @@ class _FocusableMovieCardState extends State<FocusableMovieCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 图片部分
+              // Image section
               Expanded(
-                flex: 3, // 调整比例，给信息部分更多空间
+                flex: 3,
                 child: ClipRRect(
-                  borderRadius: BorderRadius.only(topLeft: Radius.circular(12), topRight: Radius.circular(12)),
+                  borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(12), topRight: Radius.circular(12)),
                   child: Container(
                     decoration: BoxDecoration(
                       color: Color(0xFF262626),
@@ -364,14 +385,14 @@ class _FocusableMovieCardState extends State<FocusableMovieCard> {
                         color: Color(0xFF333333),
                         child: Center(
                             child: CircularProgressIndicator(
-                              strokeWidth: 3.0, // 更粗的进度指示器
+                              strokeWidth: 3.0,
                             )),
                       ),
                       errorWidget: (context, url, error) => Container(
                         color: Color(0xFF333333),
                         child: Center(
                             child: Icon(Icons.broken_image,
-                                color: Colors.grey, size: 36)), // 更大的图标
+                                color: Colors.grey, size: 36)),
                       ),
                     )
                         : Container(
@@ -382,7 +403,7 @@ class _FocusableMovieCardState extends State<FocusableMovieCard> {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                               color: Colors.white,
-                              fontSize: 24, // 更大的字体
+                              fontSize: 24,
                               fontWeight: FontWeight.bold),
                         ),
                       ),
@@ -390,11 +411,11 @@ class _FocusableMovieCardState extends State<FocusableMovieCard> {
                   ),
                 ),
               ),
-              // 信息部分
+              // Info section
               Expanded(
-                flex: 1, // 信息部分比例不变
+                flex: 1,
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8), // 更大的内边距
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: Color(0xFF262626),
                     borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
@@ -406,34 +427,34 @@ class _FocusableMovieCardState extends State<FocusableMovieCard> {
                       Text(
                         widget.movie.title,
                         style: TextStyle(
-                          fontSize: 20, // 更大的标题字体
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      SizedBox(height: 6), // 更大的间距
+                      SizedBox(height: 6),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
                             '${widget.movie.year}',
                             style: TextStyle(
-                              fontSize: 18, // 更大的年份字体
+                              fontSize: 18,
                               color: Colors.grey,
                             ),
                           ),
                           Row(
                             children: [
-                              Icon(Icons.star, size: 20, color: Colors.amber), // 更大的星标
-                              SizedBox(width: 8), // 更大的间距
+                              Icon(Icons.star, size: 20, color: Colors.amber),
+                              SizedBox(width: 8),
                               Text(
                                 '${widget.movie.rating}',
                                 style: TextStyle(
-                                  fontSize: 18, // 更大的评分字体
+                                  fontSize: 18,
                                   color: Colors.amber,
-                                  fontWeight: FontWeight.bold, // 加粗评分
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ],
