@@ -25,7 +25,7 @@ permissions:
   contents: write
 
 env:
-  FLUTTER_VERSION: '3.32.1'
+  FLUTTER_VERSION: '3.32.2'
   ANDROID_BUILD_TOOLS: "34.0.0"
   GRADLE_OPTS: "-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
   FLUTTER_HOME: /opt/hostedtoolcache/flutter
