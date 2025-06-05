@@ -17,8 +17,7 @@ class _MovieHomePageState extends State<MovieHomePage> {
   final Dio _dio = Dio();
   int _selectedTab = 0;
   bool _isLoading = false;
-  final List<String> _tabs = ['动作', '喜剧', '科幻', '恐怖', '爱情', '悬疑', '动画', '纪录片', '战争', '港剧'
-  ];
+  List<String> _tabs = ['加载中...']; // Initialize with loading state
   List<Movie> _movies = [];
 
   @override
@@ -29,8 +28,34 @@ class _MovieHomePageState extends State<MovieHomePage> {
 
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
-    await _fetchMovies(_tabs[_selectedTab]);
+    await _fetchTags(); // First fetch tags
+    if (_tabs.isNotEmpty && _tabs[0] != '加载中...') {
+      await _fetchMovies(_tabs[_selectedTab]);
+    }
     setState(() => _isLoading = false);
+  }
+
+  Future<void> _fetchTags() async {
+    try {
+      final response = await _dio.get(
+        'http://localhost:8023/api/tags', // Replace with your actual API URL
+        options: Options(
+          headers: {'Content-Type': 'application/json'},
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> tags = response.data;
+        setState(() {
+          _tabs = tags.map((tag) => tag['name'].toString()).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('获取标签失败: $e');
+      setState(() {
+        _tabs = ['获取标签失败'];
+      });
+    }
   }
 
   Future<void> _fetchMovies(String tag) async {
@@ -98,6 +123,17 @@ class _MovieHomePageState extends State<MovieHomePage> {
             _buildTabBar(),
             if (_isLoading)
               Expanded(child: Center(child: CircularProgressIndicator()))
+            else if (_movies.isEmpty)
+              Expanded(
+                child: Center(
+                  child: Text(
+                    _tabs[0] == '获取标签失败'
+                        ? '无法加载标签，请检查网络连接'
+                        : '没有找到电影数据',
+                    style: TextStyle(color: Colors.white, fontSize: 24),
+                  ),
+                ),
+              )
             else
               Expanded(
                 child: Padding(
@@ -230,9 +266,8 @@ class _MovieHomePageState extends State<MovieHomePage> {
                           ? Border.all(color: Colors.white, width: 2)
                           : null,
                     ),
-                    // 确保文字垂直居中（关键修改）
                     child: SizedBox(
-                      height: double.infinity, // 撑满父容器高度
+                      height: double.infinity,
                       child: Center(
                         child: Text(
                           _tabs[index],
@@ -241,7 +276,7 @@ class _MovieHomePageState extends State<MovieHomePage> {
                                 ? Colors.white
                                 : Colors.grey,
                             fontSize: 20,
-                            height: 1.0, // 避免行高影响垂直居中
+                            height: 1.0,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.visible,
@@ -259,18 +294,21 @@ class _MovieHomePageState extends State<MovieHomePage> {
   }
 
   Widget _buildMovieGrid() {
-    return GridView.builder(
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 5,
-        childAspectRatio: 0.65, // 调整为更适合电视的宽高比
-        mainAxisSpacing: 30, // 增加行间距
-        crossAxisSpacing: 30, // 增加列间距
+    return Container(
+      color: Colors.yellow,
+      child: GridView.builder(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 5,
+          childAspectRatio: 0.65,
+          mainAxisSpacing: 30,
+          crossAxisSpacing: 30,
+        ),
+        itemCount: _movies.length,
+        itemBuilder: (context, index) {
+          return FocusableMovieCard(movie: _movies[index]);
+        },
+        padding: EdgeInsets.only(left: 20,top: 20,right: 20),
       ),
-      itemCount: _movies.length,
-      itemBuilder: (context, index) {
-        return FocusableMovieCard(movie: _movies[index]);
-      },
-      padding: EdgeInsets.all(10),
     );
   }
 }
@@ -321,7 +359,6 @@ class _FocusableMovieCardState extends State<FocusableMovieCard> {
         if (event is KeyDownEvent &&
             (event.logicalKey == LogicalKeyboardKey.select ||
                 event.logicalKey == LogicalKeyboardKey.enter)) {
-          // Navigate to SearchPage with movie title as initial query
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -352,9 +389,8 @@ class _FocusableMovieCardState extends State<FocusableMovieCard> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Image section
               Expanded(
-                flex: 3,
+                flex: 4, // Increased flex to give more space to the image
                 child: ClipRRect(
                   borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(12), topRight: Radius.circular(12)),
@@ -403,58 +439,54 @@ class _FocusableMovieCardState extends State<FocusableMovieCard> {
                   ),
                 ),
               ),
-              // Info section
-              Expanded(
-                flex: 1,
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Color(0xFF262626),
-                    borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.movie.title,
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+              Container( // Changed from Expanded to Container with fixed height
+                height: 70, // Fixed height for the bottom section
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Color(0xFF262626),
+                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween, // This will push content to top and bottom
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.movie.title,
+                      style: TextStyle(
+                        fontSize: 18, // Slightly smaller font
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${widget.movie.year}',
+                          style: TextStyle(
+                            fontSize: 16, // Slightly smaller font
+                            color: Colors.grey,
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '${widget.movie.year}',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              Icon(Icons.star, size: 20, color: Colors.amber),
-                              SizedBox(width: 8),
-                              Text(
-                                '${widget.movie.rating}',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  color: Colors.amber,
-                                  fontWeight: FontWeight.bold,
-                                ),
+                        Row(
+                          children: [
+                            Icon(Icons.star, size: 16, color: Colors.amber), // Smaller icon
+                            SizedBox(width: 4), // Reduced spacing
+                            Text(
+                              '${widget.movie.rating}',
+                              style: TextStyle(
+                                fontSize: 16, // Slightly smaller font
+                                color: Colors.amber,
+                                fontWeight: FontWeight.bold,
                               ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],

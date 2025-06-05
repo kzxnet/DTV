@@ -18,10 +18,10 @@ void main() async {
 
   await Hive.openBox('sources');
   await Hive.openBox('proxies');
+  await Hive.openBox('tags');
 
   // 加载并存储初始配置
   await _loadInitialConfig();
-
 
   // 启动Web服务
   final server = await startServer();
@@ -87,67 +87,136 @@ class MyApp extends StatelessWidget {
 }
 
 Future<void> _loadInitialConfig() async {
-
   final uuid = Uuid();
 
   final sourcesBox = Hive.box('sources');
   final proxiesBox = Hive.box('proxies');
+  final tagsBox = Hive.box('tags');
 
-  // 检查是否已有配置
-  if (sourcesBox.isEmpty || proxiesBox.isEmpty) {
-    try {
-      final dio = Dio();
-      print('开始加载配置文件...');
-      final response = await dio.get(
-        'https://ktv.aini.us.kg/config.json',
-        options: Options(responseType: ResponseType.json),
-      );
-
-      if (response.statusCode == 200) {
-        final config = response.data;
-        print('成功获取配置文件，共${config['sources']?.length ?? 0}个源');
-
-        // 存储源数据
-        int savedCount = 0;
-        for (final source in config['sources']) {
-          try {
-            final id = uuid.v4();
-            sourcesBox.put(id, {
-              ...source,
-              'id': id,
-              'createdAt': DateTime.now().toIso8601String(),
-              'updatedAt': DateTime.now().toIso8601String(),
-            });
-            savedCount++;
-            print('成功保存源: ${source['name']}');
-          } catch (e) {
-            print('保存源${source['name']}失败: $e');
-          }
-        }
-        print('实际保存源数量: $savedCount');
-
-        // 存储代理数据
-        try {
-          final pid = uuid.v4();
-          proxiesBox.put(pid, {
-            "id": pid,
-            "url": config['proxy']['url'],
-            "name": config['proxy']['name'],
-            "enabled": config['proxy']['enabled'],
-            "createdAt": DateTime.now().toIso8601String(),
-            "updatedAt": DateTime.now().toIso8601String()
-          });
-          print('成功保存代理配置');
-        } catch (e) {
-          print('保存代理配置失败: $e');
-        }
-      } else {
-        print('获取配置文件失败，状态码: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('加载初始配置失败: $e');
-    }
+  // 检查 sources 是否需要初始化
+  if (sourcesBox.isEmpty) {
+    await _initializeSources(sourcesBox, uuid);
   } else {
-    print('已有配置，跳过初始化');
+    print('sources 已有数据，跳过初始化');
+  }
+
+  // 检查 proxies 是否需要初始化
+  if (proxiesBox.isEmpty) {
+    await _initializeProxies(proxiesBox, uuid);
+  } else {
+    print('proxies 已有数据，跳过初始化');
+  }
+
+  // 检查 tags 是否需要初始化（新增逻辑，不影响已有数据）
+  if (tagsBox.isEmpty) {
+    await _initializeTags(tagsBox, uuid);
+  } else {
+    print('tags 已有数据，跳过初始化');
+  }
+}
+
+/// 初始化 sources
+Future<void> _initializeSources(Box sourcesBox, Uuid uuid) async {
+  try {
+    final dio = Dio();
+    print('开始加载 sources 配置...');
+    final response = await dio.get(
+      'https://ktv.aini.us.kg/config.json',
+      options: Options(responseType: ResponseType.json),
+    );
+
+    if (response.statusCode == 200) {
+      final config = response.data;
+      print('成功获取 sources 配置，共${config['sources']?.length ?? 0}个源');
+
+      int savedCount = 0;
+      for (final source in config['sources']) {
+        try {
+          final id = uuid.v4();
+          sourcesBox.put(id, {
+            ...source,
+            'id': id,
+            'createdAt': DateTime.now().toIso8601String(),
+            'updatedAt': DateTime.now().toIso8601String(),
+          });
+          savedCount++;
+          print('成功保存源: ${source['name']}');
+        } catch (e) {
+          print('保存源${source['name']}失败: $e');
+        }
+      }
+      print('实际保存源数量: $savedCount');
+    } else {
+      print('获取 sources 配置失败，状态码: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('加载 sources 初始配置失败: $e');
+  }
+}
+
+/// 初始化 proxies
+Future<void> _initializeProxies(Box proxiesBox, Uuid uuid) async {
+  try {
+    final dio = Dio();
+    print('开始加载 proxies 配置...');
+    final response = await dio.get(
+      'https://ktv.aini.us.kg/config.json',
+      options: Options(responseType: ResponseType.json),
+    );
+
+    if (response.statusCode == 200) {
+      final config = response.data;
+      print('成功获取 proxies 配置');
+
+      final pid = uuid.v4();
+      proxiesBox.put(pid, {
+        "id": pid,
+        "url": config['proxy']['url'],
+        "name": config['proxy']['name'],
+        "enabled": config['proxy']['enabled'],
+        "createdAt": DateTime.now().toIso8601String(),
+        "updatedAt": DateTime.now().toIso8601String()
+      });
+      print('成功保存代理配置');
+    } else {
+      print('获取 proxies 配置失败，状态码: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('加载 proxies 初始配置失败: $e');
+  }
+}
+
+/// 初始化 tags（新增逻辑）
+Future<void> _initializeTags(Box tagsBox, Uuid uuid) async {
+  try {
+    final dio = Dio();
+    print('开始加载 tags 配置...');
+    final response = await dio.get(
+      'https://ktv.aini.us.kg/config.json',
+      options: Options(responseType: ResponseType.json),
+    );
+
+    if (response.statusCode == 200) {
+      final config = response.data;
+      print('成功获取 tags 配置，共${config['tags']?.length ?? 0}个标签');
+
+      int tagCount = 0;
+      for (final tag in config['tags']) {
+        final tid = uuid.v4();
+        tagsBox.put(tid, {
+          ...tag,
+          'id': tid,
+          'createdAt': DateTime.now().toIso8601String(),
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+        tagCount++;
+        print('成功保存标签: ${tag['name']}');
+      }
+      print('实际保存标签数量: $tagCount');
+    } else {
+      print('获取 tags 配置失败，状态码: ${response.statusCode}');
+    }
+  } catch (e) {
+    print('加载 tags 初始配置失败: $e');
   }
 }
