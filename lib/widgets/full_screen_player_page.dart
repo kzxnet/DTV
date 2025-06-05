@@ -51,6 +51,9 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   final Duration _maxSeekSpeed = const Duration(seconds: 300);
   final Duration _speedIncrement = const Duration(seconds: 10);
   Timer? _speedIncreaseTimer;
+  Timer? _volumeHUDTimer;
+  double _volume = 0.5;
+  bool _showVolumeHUD = false;
 
   _FullScreenPlayerPageState() : _currentEpisodeIndex = 0;
 
@@ -136,6 +139,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     _controlsVisibility.dispose();
     _isSeeking.dispose();
     _isBuffering.dispose();
+    _volumeHUDTimer?.cancel();
     WakelockPlus.disable().ignore();
     super.dispose();
   }
@@ -157,6 +161,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       });
 
       await _controller.initialize();
+      _controller.setVolume(_volume);
       _setupWakelockListener();
       _controller.addListener(_controllerListener);
 
@@ -296,6 +301,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       });
 
       await _controller.initialize();
+      _controller.setVolume(_volume);
       _setupWakelockListener();
 
       if (_episodeProgress.containsKey(_currentEpisodeIndex)) {
@@ -408,6 +414,22 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     });
   }
 
+  void _displayVolumeHUD(double volume) {
+    setState(() {
+      _volume = volume;
+      _showVolumeHUD = true;
+    });
+
+    _volumeHUDTimer?.cancel();
+    _volumeHUDTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _showVolumeHUD = false;
+        });
+      }
+    });
+  }
+
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is KeyRepeatEvent) {
       return KeyEventResult.handled;
@@ -422,6 +444,13 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   }
 
   KeyEventResult _handleKeyDown(KeyDownEvent event) {
+    final now = DateTime.now();
+    if (_lastKeyEventTime != null &&
+        now.difference(_lastKeyEventTime!) < Duration(milliseconds: 100)) {
+      return KeyEventResult.handled;
+    }
+    _lastKeyEventTime = now;
+
     switch (event.logicalKey) {
       case LogicalKeyboardKey.select:
       case LogicalKeyboardKey.enter:
@@ -448,6 +477,21 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         return KeyEventResult.handled;
       case LogicalKeyboardKey.contextMenu:
         _stopSeek(Duration.zero);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.audioVolumeUp:
+        final newVolume = (_volume + 0.05).clamp(0.0, 1.0);
+        _controller.setVolume(newVolume);
+        _displayVolumeHUD(newVolume);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.audioVolumeDown:
+        final newVolume = (_volume - 0.05).clamp(0.0, 1.0);
+        _controller.setVolume(newVolume);
+        _displayVolumeHUD(newVolume);
+        return KeyEventResult.handled;
+      case LogicalKeyboardKey.audioVolumeMute:
+        final newVolume = _volume > 0 ? 0.0 : 0.5;
+        _controller.setVolume(newVolume);
+        _displayVolumeHUD(newVolume);
         return KeyEventResult.handled;
       default:
         return KeyEventResult.ignored;
@@ -563,6 +607,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                   );
                 },
               ),
+              if (_showVolumeHUD) _buildVolumeHUD(),
             ],
           ),
         ),
@@ -720,8 +765,16 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                   Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.volume_up, color: Colors.white, size: 24),
-                        onPressed: () {},
+                        icon: Icon(
+                          _volume == 0 ? Icons.volume_off : Icons.volume_up,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                        onPressed: () {
+                          final newVolume = _volume > 0 ? 0.0 : 0.5;
+                          _controller.setVolume(newVolume);
+                          _displayVolumeHUD(newVolume);
+                        },
                       ),
                     ],
                   ),
@@ -754,6 +807,42 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVolumeHUD() {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 140,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black54,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                _volume == 0 ? Icons.volume_off : Icons.volume_up,
+                color: Colors.white,
+                size: 24,
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                width: 100,
+                child: LinearProgressIndicator(
+                  value: _volume,
+                  backgroundColor: Colors.grey[600],
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+            ],
           ),
         ),
       ),
