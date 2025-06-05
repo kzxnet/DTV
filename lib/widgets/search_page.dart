@@ -3,9 +3,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:network_info_plus/network_info_plus.dart';
-import 'package:qr_flutter/qr_flutter.dart';
-
 import 'movie_detail_page.dart';
 
 class SearchPage extends StatefulWidget {
@@ -21,7 +18,6 @@ class _SearchPageState extends State<SearchPage> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   List<dynamic> _movies = [];
-  List<dynamic> _recommendations = [];
   bool _isLoading = false;
   bool _showSearchHint = true;
 
@@ -37,7 +33,6 @@ class _SearchPageState extends State<SearchPage> {
     super.initState();
     _searchFocusNode.addListener(_onFocusChange);
     _searchController.addListener(_onSearchTextChange);
-    _fetchRecommendations();
   }
 
   void _onFocusChange() {
@@ -56,30 +51,6 @@ class _SearchPageState extends State<SearchPage> {
     _searchFocusNode.dispose();
     _cancelToken.cancel();
     super.dispose();
-  }
-
-  Future<void> _fetchRecommendations() async {
-    try {
-      final response = await _dio.get(
-        'https://movie.douban.com/j/search_subjects',
-        queryParameters: {
-          'type': 'movie',
-          'tag': '热门',
-          'sort': 'recommend',
-          'page_limit': '100',
-          'page_start': '0',
-        },
-        cancelToken: _cancelToken.isCancelled ? _cancelToken = CancelToken() : _cancelToken,
-      );
-
-      if (response.statusCode == 200) {
-        setState(() {
-          _recommendations = response.data['subjects'] ?? [];
-        });
-      }
-    } catch (e) {
-      debugPrint('获取推荐失败: $e');
-    }
   }
 
   Future<void> _searchMovies(String keyword) async {
@@ -219,101 +190,7 @@ class _SearchPageState extends State<SearchPage> {
             },
           ),
         ),
-        Focus(
-          onKeyEvent: (node, event) {
-            if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.select) {
-              _showQRCodeDialog();
-              return KeyEventResult.handled;
-            }
-            return KeyEventResult.ignored;
-          },
-          child: Builder(
-            builder: (context) {
-              final hasFocus = Focus.of(context).hasFocus;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: hasFocus ? _primaryColor : const Color(0xFF333333),
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: hasFocus
-                      ? [BoxShadow(color: _primaryColor.withAlpha(255 ~/ 2), blurRadius: 12, spreadRadius: 2)]
-                      : null,
-                ),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(24),
-                  onTap: () => _showQRCodeDialog(),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                    child: Row(
-                      children: [
-                        Icon(Icons.settings, size: 32, color: Colors.white),
-                        const SizedBox(width: 8),
-                        Text(
-                          '管理',
-                          style: TextStyle(fontSize: 22, color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
       ],
-    );
-  }
-
-  Future<String> _getLocalIp() async {
-    try {
-      final interfaces = await NetworkInterface.list();
-      for (var interface in interfaces) {
-        for (var addr in interface.addresses) {
-          if (!addr.isLoopback && addr.type == InternetAddressType.IPv4) {
-            return addr.address;
-          }
-        }
-      }
-      return '127.0.0.1';
-    } catch (e) {
-      debugPrint('获取IP失败: $e');
-      return '127.0.0.1';
-    }
-  }
-
-  void _showQRCodeDialog() async {
-    final ip = await _getLocalIp();
-    final url = 'http://$ip:8023';
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: _darkBackground,
-        title: Text('扫描二维码管理', style: TextStyle(color: _textColor)),
-        content: Container(
-          width: 300,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              QrImageView(
-                data: url,
-                version: QrVersions.auto,
-                size: 200.0,
-                backgroundColor: Colors.white,
-              ),
-              SizedBox(height: 16),
-              Text(url, style: TextStyle(color: _textColor)),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('关闭', style: TextStyle(color: _primaryColor)),
-          ),
-        ],
-      ),
     );
   }
 
@@ -336,7 +213,7 @@ class _SearchPageState extends State<SearchPage> {
 
     if (_movies.isEmpty) {
       return _showSearchHint
-          ? SingleChildScrollView(
+          ? Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -351,13 +228,6 @@ class _SearchPageState extends State<SearchPage> {
               '使用遥控器方向键导航，确认键选择',
               style: TextStyle(fontSize: 20, color: _hintColor.withAlpha((255 * 0.7).toInt())),
             ),
-            const SizedBox(height: 32),
-            Text(
-              '热门推荐',
-              style: TextStyle(fontSize: 24, color: _textColor, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            _buildRecommendationGrid(),
           ],
         ),
       )
@@ -382,25 +252,6 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     return _buildMovieGrid();
-  }
-
-  Widget _buildRecommendationGrid() {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 48),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        childAspectRatio: 0.7,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-      ),
-      itemCount: _recommendations.length,
-      itemBuilder: (context, index) {
-        final movie = _recommendations[index];
-        return _buildRecommendationCard(movie);
-      },
-    );
   }
 
   Widget _buildMovieGrid() {
@@ -440,82 +291,6 @@ class _SearchPageState extends State<SearchPage> {
           ],
         );
       },
-    );
-  }
-
-  Widget _buildRecommendationCard(Map<String, dynamic> movie) {
-    return Focus(
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent && (event.logicalKey == LogicalKeyboardKey.select || event.logicalKey == LogicalKeyboardKey.enter)) {
-          _searchController.text = movie['title'];
-          _searchMovies(movie['title']);
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: Builder(
-        builder: (context) {
-          final hasFocus = Focus.of(context).hasFocus;
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            margin: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: hasFocus
-                  ? [BoxShadow(color: _primaryColor.withAlpha((255 * 0.4).toInt()), blurRadius: 16, spreadRadius: 4)]
-                  : [BoxShadow(color: Colors.black.withAlpha((255 * 0.4).toInt()), blurRadius: 8, spreadRadius: 2)],
-            ),
-            child: Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: hasFocus ? BorderSide(color: _primaryColor, width: 3) : BorderSide.none,
-              ),
-              elevation: hasFocus ? 8 : 4,
-              color: _cardBackground,
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () {
-                  _searchController.text = movie['title'];
-                  _searchMovies(movie['title']);
-                },
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: CachedNetworkImage(
-                        httpHeaders: {
-                          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                          'Accept': 'image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
-                        },
-                        imageUrl: movie['cover'] ?? '',
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => Center(
-                          child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(_primaryColor)),
-                        ),
-                        errorWidget: (_, __, ___) => Center(
-                          child: Icon(Icons.broken_image, size: 48, color: _hintColor),
-                        ),
-                        memCacheWidth: 200,
-                        memCacheHeight: 300,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Text(
-                        movie['title'] ?? '未知标题',
-                        style: TextStyle(fontSize: 16, color: _textColor, fontWeight: FontWeight.bold),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
     );
   }
 

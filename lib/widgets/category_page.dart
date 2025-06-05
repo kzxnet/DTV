@@ -6,6 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+// 首先在文件顶部添加导入
+import 'package:libretv_app/widgets/search_page.dart';
+
 void main() {
   runApp(MovieHeavenApp());
 }
@@ -193,20 +196,25 @@ class _MovieHomePageState extends State<MovieHomePage> {
 
   Widget _buildAppBar() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
       color: Color(0xFF1A1A1A),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           IconButton(
             icon: Icon(Icons.search, size: 20),
-            onPressed: () {},
-            padding: EdgeInsets.zero,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => SearchPage()),
+              );
+            },
+            focusColor: Colors.red,
           ),
-          SizedBox(width: 5),
+          SizedBox(width: 10),
           IconButton(
             icon: Icon(Icons.settings, size: 20),
-            onPressed: _showQRCodeDialog,  // 修改这里
+            onPressed: _showQRCodeDialog,
             focusColor: Colors.red,
           ),
         ],
