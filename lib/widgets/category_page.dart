@@ -164,36 +164,39 @@ class _MovieHomePageState extends State<MovieHomePage> {
   }
 
   Widget _buildAppBar() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        IconButton(
-          icon: Icon(Icons.search, size: 20),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => SearchPage()),
-            );
-          },
-          focusColor: Colors.red,
-        ),
-        SizedBox(width: 10),
-        IconButton(
-          icon: Icon(Icons.settings, size: 20),
-          onPressed: _showQRCodeDialog,
-          focusColor: Colors.red,
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 5,right: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          IconButton(
+            icon: Icon(Icons.search, size: 20),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => SearchPage()),
+              );
+            },
+            focusColor: Colors.red,
+          ),
+          SizedBox(width: 10),
+          IconButton(
+            icon: Icon(Icons.settings, size: 20),
+            onPressed: _showQRCodeDialog,
+            focusColor: Colors.red,
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildTabBar() {
     return Container(
-      height: 70, // 进一步增加高度
+      height: 70,
       padding: EdgeInsets.symmetric(vertical: 12),
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: 30), // 增加水平内边距
+        padding: EdgeInsets.symmetric(horizontal: 30),
         itemCount: _tabs.length,
         itemBuilder: (context, index) {
           return Padding(
@@ -212,45 +215,37 @@ class _MovieHomePageState extends State<MovieHomePage> {
                   return AnimatedContainer(
                     duration: Duration(milliseconds: 200),
                     padding: EdgeInsets.symmetric(
-                      horizontal: 24, // 增加水平内边距
-                      vertical: 12,  // 增加垂直内边距
+                      horizontal: 24,
+                      vertical: 12,
                     ),
                     constraints: BoxConstraints(
-                      minWidth: 100, // 设置最小宽度
+                      minWidth: 100,
                     ),
                     decoration: BoxDecoration(
                       color: _selectedTab == index
                           ? Colors.red
                           : Color(0xFF333333),
-                      borderRadius: BorderRadius.circular(35), // 增大圆角
+                      borderRadius: BorderRadius.circular(35),
                       border: isFocused
-                          ? Border.all(color: Colors.white, width: 2) // 加粗边框
+                          ? Border.all(color: Colors.white, width: 2)
                           : null,
-                      boxShadow: isFocused
-                          ? [
-                        BoxShadow(
-                          color: Colors.white.withOpacity(0.4),
-                          blurRadius: 15,
-                          spreadRadius: 3,
-                        )
-                      ]
-                          : [],
                     ),
-                    child: Center(
-                      child: Text(
-                        _tabs[index],
-                        style: TextStyle(
-                          color: _selectedTab == index
-                              ? Colors.white
-                              : Colors.grey,
-                          fontWeight: _selectedTab == index
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                          fontSize: 20, // 进一步增大字体
-                          height: 1.2, // 调整行高
+                    // 确保文字垂直居中（关键修改）
+                    child: SizedBox(
+                      height: double.infinity, // 撑满父容器高度
+                      child: Center(
+                        child: Text(
+                          _tabs[index],
+                          style: TextStyle(
+                            color: _selectedTab == index
+                                ? Colors.white
+                                : Colors.grey,
+                            fontSize: 20,
+                            height: 1.0, // 避免行高影响垂直居中
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.visible,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.visible, // 确保文本不会被裁剪
                       ),
                     ),
                   );
@@ -347,15 +342,12 @@ class _FocusableMovieCardState extends State<FocusableMovieCard> {
           duration: Duration(milliseconds: 150),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            boxShadow: _isFocused
-                ? [
-              BoxShadow(
-                color: Colors.white.withOpacity(0.5),
-                blurRadius: 20,
-                spreadRadius: 4,
-              )
-            ]
-                : [],
+            border: _isFocused
+                ? Border.all(
+              color: Colors.white,
+              width: 2.0,
+            )
+                : null,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
