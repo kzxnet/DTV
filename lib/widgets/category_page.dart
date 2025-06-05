@@ -1,43 +1,9 @@
 import 'dart:io';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:dio/dio.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-
-// 首先在文件顶部添加导入
 import 'package:libretv_app/widgets/search_page.dart';
-
-void main() {
-  runApp(MovieHeavenApp());
-}
-
-class MovieHeavenApp extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
-
-    return MaterialApp(
-      title: '电影天堂',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        primaryColor: Colors.black,
-        scaffoldBackgroundColor: Color(0xFF1A1A1A),
-        textTheme: TextTheme(
-          titleLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          bodyMedium: TextStyle(fontSize: 14),
-          bodySmall: TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-      ),
-      home: MovieHomePage(),
-    );
-  }
-}
 
 class MovieHomePage extends StatefulWidget {
   @override
@@ -197,7 +163,6 @@ class _MovieHomePageState extends State<MovieHomePage> {
   Widget _buildAppBar() {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 5, vertical: 10),
-      color: Color(0xFF1A1A1A),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [

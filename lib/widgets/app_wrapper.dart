@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:libretv_app/widgets/update_checker.dart';
 import 'package:libretv_app/widgets/search_page.dart';
 
+import 'category_page.dart';
+
 class AppWrapper extends StatefulWidget {
   const AppWrapper({super.key});
 
@@ -24,6 +26,6 @@ class _AppWrapperState extends State<AppWrapper> {
 
   @override
   Widget build(BuildContext context) {
-    return const SearchPage();
+    return MovieHomePage();
   }
 }
