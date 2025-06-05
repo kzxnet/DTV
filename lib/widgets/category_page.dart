@@ -294,21 +294,18 @@ class _MovieHomePageState extends State<MovieHomePage> {
   }
 
   Widget _buildMovieGrid() {
-    return Container(
-      color: Colors.yellow,
-      child: GridView.builder(
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 5,
-          childAspectRatio: 0.65,
-          mainAxisSpacing: 30,
-          crossAxisSpacing: 30,
-        ),
-        itemCount: _movies.length,
-        itemBuilder: (context, index) {
-          return FocusableMovieCard(movie: _movies[index]);
-        },
-        padding: EdgeInsets.only(left: 20,top: 20,right: 20),
+    return GridView.builder(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 5,
+        childAspectRatio: 0.65,
+        mainAxisSpacing: 30,
+        crossAxisSpacing: 30,
       ),
+      itemCount: _movies.length,
+      itemBuilder: (context, index) {
+        return FocusableMovieCard(movie: _movies[index]);
+      },
+      padding: EdgeInsets.only(left: 20,top: 20,right: 20),
     );
   }
 }
