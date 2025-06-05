@@ -48,7 +48,7 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
-          architecture: arm64
+          architecture: x64
 
       - name: Verify Flutter
         run: |
