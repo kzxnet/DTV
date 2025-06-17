@@ -17,18 +17,39 @@ class _MovieHomePageState extends State<MovieHomePage> {
   final Dio _dio = Dio();
   int _selectedTab = 0;
   bool _isLoading = false;
-  List<String> _tabs = ['加载中...']; // Initialize with loading state
-  List<Movie> _movies = [];
+  bool _isRefreshing = false;
+  bool _hasMore = true;
+  List<String> _tabs = ['加载中...'];
+  Map<String, List<Movie>> _moviesByTag = {};
+  Set<String> _loadedTags = {};
+  Map<String, int> _currentPageByTag = {};
+  static const int _moviesPerPage = 20;
+  final ScrollController _scrollController = ScrollController();
+  final FocusNode _refreshFocusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _loadInitialData();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _refreshFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent && _hasMore) {
+      _fetchMovies(_tabs[_selectedTab], loadMore: true);
+    }
   }
 
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
-    await _fetchTags(); // First fetch tags
+    await _fetchTags();
     if (_tabs.isNotEmpty && _tabs[0] != '加载中...') {
       await _fetchMovies(_tabs[_selectedTab]);
     }
@@ -38,7 +59,7 @@ class _MovieHomePageState extends State<MovieHomePage> {
   Future<void> _fetchTags() async {
     try {
       final response = await _dio.get(
-        'http://localhost:8023/api/tags', // Replace with your actual API URL
+        'http://localhost:8023/api/tags',
         options: Options(
           headers: {'Content-Type': 'application/json'},
         ),
@@ -48,6 +69,9 @@ class _MovieHomePageState extends State<MovieHomePage> {
         final List<dynamic> tags = response.data;
         setState(() {
           _tabs = tags.map((tag) => tag['name'].toString()).toList();
+          for (var tag in _tabs) {
+            _currentPageByTag[tag] = 0;
+          }
         });
       }
     } catch (e) {
@@ -58,9 +82,16 @@ class _MovieHomePageState extends State<MovieHomePage> {
     }
   }
 
-  Future<void> _fetchMovies(String tag) async {
+  Future<void> _fetchMovies(String tag, {bool loadMore = false}) async {
+    if (!loadMore && _loadedTags.contains(tag)) {
+      return;
+    }
+
     try {
-      setState(() => _isLoading = true);
+      setState(() => loadMore ? _isRefreshing = true : _isLoading = true);
+
+      final currentPage = loadMore ? (_currentPageByTag[tag] ?? 0) : 0;
+      final startIndex = currentPage * _moviesPerPage;
 
       final response = await _dio.get(
         'https://movie.douban.com/j/search_subjects',
@@ -68,15 +99,14 @@ class _MovieHomePageState extends State<MovieHomePage> {
           'type': 'movie',
           'tag': tag,
           'sort': 'recommend',
-          'page_limit': '20',
-          'page_start': '0',
+          'page_limit': _moviesPerPage.toString(),
+          'page_start': startIndex.toString(),
         },
       );
 
       if (response.statusCode == 200) {
         final List<dynamic> subjects = response.data['subjects'] ?? [];
         final List<Movie> movies = subjects.map((subject) {
-          print(subject['cover']);
           return Movie(
             id: subject['id'],
             title: subject['title'],
@@ -90,19 +120,45 @@ class _MovieHomePageState extends State<MovieHomePage> {
         }).toList();
 
         setState(() {
-          _movies = movies;
+          if (loadMore) {
+            _moviesByTag[tag] = [..._moviesByTag[tag] ?? [], ...movies];
+          } else {
+            _moviesByTag[tag] = movies;
+            _loadedTags.add(tag);
+          }
+          _currentPageByTag[tag] = currentPage + 1;
+          _hasMore = movies.length >= _moviesPerPage;
         });
       }
     } catch (e) {
       debugPrint('获取电影失败: $e');
+      setState(() => _hasMore = false);
     } finally {
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _isRefreshing = false;
+      });
     }
+  }
+
+  Future<void> _handleRefresh() async {
+    if (_isRefreshing) return;
+
+    setState(() {
+      _isRefreshing = true;
+      _currentPageByTag[_tabs[_selectedTab]] = 0;
+      _loadedTags.remove(_tabs[_selectedTab]);
+    });
+
+    await _fetchMovies(_tabs[_selectedTab]);
+
+    setState(() {
+      _isRefreshing = false;
+    });
   }
 
   int _extractYearFromTitle(String title) {
     try {
-      // 尝试从标题中提取年份，例如 "电影名 (2023)"
       final match = RegExp(r'$(\d{4})$').firstMatch(title);
       if (match != null) {
         return int.parse(match.group(1)!);
@@ -113,39 +169,7 @@ class _MovieHomePageState extends State<MovieHomePage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildAppBar(),
-            _buildTabBar(),
-            if (_isLoading)
-              Expanded(child: Center(child: CircularProgressIndicator()))
-            else if (_movies.isEmpty)
-              Expanded(
-                child: Center(
-                  child: Text(
-                    _tabs[0] == '获取标签失败'
-                        ? '无法加载标签，请检查网络连接'
-                        : '没有找到电影数据',
-                    style: TextStyle(color: Colors.white, fontSize: 24),
-                  ),
-                ),
-              )
-            else
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  child: _buildMovieGrid(),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+  List<Movie> get _currentMovies => _moviesByTag[_tabs[_selectedTab]] ?? [];
 
   Future<String> _getLocalIp() async {
     try {
@@ -172,7 +196,7 @@ class _MovieHomePageState extends State<MovieHomePage> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.black,
-        title: Text('扫描二维码管理', style: TextStyle(color: Colors.white,),textAlign: TextAlign.center,),
+        title: Text('扫描二维码管理', style: TextStyle(color: Colors.white), textAlign: TextAlign.center),
         content: Container(
           width: 300,
           child: Column(
@@ -201,7 +225,7 @@ class _MovieHomePageState extends State<MovieHomePage> {
 
   Widget _buildAppBar() {
     return Padding(
-      padding: const EdgeInsets.only(top: 5,right: 5),
+      padding: const EdgeInsets.only(top: 5, right: 5),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
@@ -241,7 +265,10 @@ class _MovieHomePageState extends State<MovieHomePage> {
               autofocus: index == _selectedTab,
               onFocusChange: (hasFocus) {
                 if (hasFocus) {
-                  setState(() => _selectedTab = index);
+                  setState(() {
+                    _selectedTab = index;
+                    _hasMore = true;
+                  });
                   _fetchMovies(_tabs[index]);
                 }
               },
@@ -294,18 +321,72 @@ class _MovieHomePageState extends State<MovieHomePage> {
   }
 
   Widget _buildMovieGrid() {
-    return GridView.builder(
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 5,
-        childAspectRatio: 0.65,
-        mainAxisSpacing: 30,
-        crossAxisSpacing: 30,
+    return RefreshIndicator(
+      onRefresh: _handleRefresh,
+      child: GridView.builder(
+        controller: _scrollController,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 5,
+          childAspectRatio: 0.65,
+          mainAxisSpacing: 30,
+          crossAxisSpacing: 30,
+        ),
+        itemCount: _currentMovies.length,
+        itemBuilder: (context, index) {
+          return FocusableMovieCard(movie: _currentMovies[index]);
+        },
+        padding: EdgeInsets.only(left: 20, top: 20, right: 20),
       ),
-      itemCount: _movies.length,
-      itemBuilder: (context, index) {
-        return FocusableMovieCard(movie: _movies[index]);
-      },
-      padding: EdgeInsets.only(left: 20,top: 20,right: 20),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildAppBar(),
+            _buildTabBar(),
+            if (_isLoading)
+              Expanded(child: Center(child: CircularProgressIndicator()))
+            else if (_tabs[0] == '获取标签失败')
+              Expanded(
+                child: Center(
+                  child: Text(
+                    '无法加载标签，请检查网络连接',
+                    style: TextStyle(color: Colors.white, fontSize: 24),
+                  ),
+                ),
+              )
+            else if (_currentMovies.isEmpty)
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      '没有找到电影数据',
+                      style: TextStyle(color: Colors.white, fontSize: 24),
+                    ),
+                  ),
+                )
+              else
+                Expanded(
+                  child: Focus(
+                    focusNode: _refreshFocusNode,
+                    onKey: (node, event) {
+                      if (event is KeyDownEvent &&
+                          (event.logicalKey == LogicalKeyboardKey.arrowUp ||
+                              event.logicalKey == LogicalKeyboardKey.pageUp)) {
+                        _handleRefresh();
+                        return KeyEventResult.handled;
+                      }
+                      return KeyEventResult.ignored;
+                    },
+                    child: _buildMovieGrid(),
+                  ),
+                ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -345,11 +426,6 @@ class _FocusableMovieCardState extends State<FocusableMovieCard> {
   bool _isFocused = false;
 
   @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Focus(
       onKeyEvent: (node, event) {
@@ -387,7 +463,7 @@ class _FocusableMovieCardState extends State<FocusableMovieCard> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
-                flex: 4, // Increased flex to give more space to the image
+                flex: 4,
                 child: ClipRRect(
                   borderRadius: BorderRadius.only(
                       topLeft: Radius.circular(12), topRight: Radius.circular(12)),
@@ -436,21 +512,21 @@ class _FocusableMovieCardState extends State<FocusableMovieCard> {
                   ),
                 ),
               ),
-              Container( // Changed from Expanded to Container with fixed height
-                height: 70, // Fixed height for the bottom section
+              Container(
+                height: 70,
                 padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: Color(0xFF262626),
                   borderRadius: BorderRadius.vertical(bottom: Radius.circular(12)),
                 ),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween, // This will push content to top and bottom
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       widget.movie.title,
                       style: TextStyle(
-                        fontSize: 18, // Slightly smaller font
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
@@ -463,18 +539,18 @@ class _FocusableMovieCardState extends State<FocusableMovieCard> {
                         Text(
                           '${widget.movie.year}',
                           style: TextStyle(
-                            fontSize: 16, // Slightly smaller font
+                            fontSize: 16,
                             color: Colors.grey,
                           ),
                         ),
                         Row(
                           children: [
-                            Icon(Icons.star, size: 16, color: Colors.amber), // Smaller icon
-                            SizedBox(width: 4), // Reduced spacing
+                            Icon(Icons.star, size: 16, color: Colors.amber),
+                            SizedBox(width: 4),
                             Text(
                               '${widget.movie.rating}',
                               style: TextStyle(
-                                fontSize: 16, // Slightly smaller font
+                                fontSize: 16,
                                 color: Colors.amber,
                                 fontWeight: FontWeight.bold,
                               ),
