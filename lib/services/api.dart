@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:dio/dio.dart' hide Response;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
@@ -21,7 +22,7 @@ void main() async {
   Hive.init(appDocumentDir.path);
   await Hive.openBox('sources');
   await Hive.openBox('proxies');
-  await Hive.openBox('tags'); // Add tags box
+  await Hive.openBox('tags');
 
   // Start web server
   final server = await startServer();
@@ -127,7 +128,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// Storage class
 class SourceStorage {
   static const String _boxName = 'sources';
   static const String _proxyBoxName = 'proxies';
@@ -231,7 +231,6 @@ class SourceStorage {
   }
 }
 
-// Source model
 class Source {
   final String id;
   final String name;
@@ -281,7 +280,6 @@ class Source {
   }
 }
 
-// Proxy model
 class Proxy {
   final String id;
   final String url;
@@ -323,7 +321,6 @@ class Proxy {
   }
 }
 
-// Tag model
 class Tag {
   final String id;
   String name;
@@ -624,6 +621,7 @@ Future<Response> _handleDeleteTag(Request request) async {
 // Search handler
 Future<Response> _handleSearchRequest(Request request) async {
   final wd = request.url.queryParameters['wd'] ?? '';
+  Dio? dio;
 
   try {
     final sources = await SourceStorage.getAllSources();
@@ -644,20 +642,36 @@ Future<Response> _handleSearchRequest(Request request) async {
       orElse: () => null,
     );
 
+    dio = Dio();
+    dio.options.connectTimeout = const Duration(seconds: 5);
+    dio.options.receiveTimeout = const Duration(seconds: 5);
+
     final results = await Future.wait(
       activeSources.map((source) async {
         final baseUrl = activeProxy != null ? '${activeProxy['url']}/${source.url}' : source.url;
-        final uri = Uri.parse(baseUrl);
         final queryParams = {
           'ac': 'videolist',
           'wd': wd,
         };
-        final url = uri.replace(queryParameters: queryParams);
 
         try {
-          final response = await get(url, timeout: const Duration(seconds: 5));
-          if (response['statusCode'] == 200) {
-            return jsonDecode(response['body']);
+          final response = await dio!.get(
+            baseUrl,
+            queryParameters: queryParams,
+            options: Options(
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+              },
+            ),
+          );
+
+          if (response.statusCode == 200) {
+            // 确保正确处理返回数据
+            final data = response.data;
+            if (data is String) {
+              return jsonDecode(data);
+            }
+            return data;
           }
           return null;
         } catch (e) {
@@ -668,7 +682,10 @@ Future<Response> _handleSearchRequest(Request request) async {
     );
 
     final validResults = results
-        .where((r) => r != null && r['code'] == 1 && r['list'] != null && (r['list'] as List).isNotEmpty)
+        .where((r) => r != null &&
+        (r['code'] == 1 || r['code'] == '1') &&
+        r['list'] != null &&
+        (r['list'] as List).isNotEmpty)
         .toList();
 
     if (validResults.isEmpty) {
@@ -691,10 +708,11 @@ Future<Response> _handleSearchRequest(Request request) async {
     return _createJsonResponse(response);
   } catch (e) {
     return _createErrorResponse("搜索失败: ${e.toString()}", 500, e);
+  } finally {
+    dio?.close();
   }
 }
 
-// Helper functions
 List<dynamic> _mergeResults(List<dynamic> results, List<Source> sources) {
   final mergedList = <dynamic>[];
   final seenIds = <String>{};
@@ -754,17 +772,5 @@ bool _isValidUrl(String url) {
     return true;
   } catch (e) {
     return false;
-  }
-}
-
-Future<Map<String, dynamic>> get(Uri url, {Duration? timeout}) async {
-  final client = HttpClient();
-  try {
-    final request = await client.getUrl(url);
-    final response = await request.close().timeout(timeout ?? const Duration(seconds: 5));
-    final responseBody = await response.transform(utf8.decoder).join();
-    return {'statusCode': response.statusCode, 'body': responseBody};
-  } finally {
-    client.close();
   }
 }
