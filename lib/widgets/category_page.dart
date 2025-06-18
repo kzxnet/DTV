@@ -26,6 +26,7 @@ class _MovieHomePageState extends State<MovieHomePage> {
   static const int _moviesPerPage = 20;
   final ScrollController _scrollController = ScrollController();
   final FocusNode _refreshFocusNode = FocusNode();
+  DateTime? _lastLoadMoreTime;
 
   @override
   void initState() {
@@ -42,8 +43,20 @@ class _MovieHomePageState extends State<MovieHomePage> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels == _scrollController.position.maxScrollExtent && _hasMore) {
-      _fetchMovies(_tabs[_selectedTab], loadMore: true);
+    final position = _scrollController.position;
+    final maxScroll = position.maxScrollExtent;
+    final currentScroll = position.pixels;
+
+    // Use a small epsilon value (1.0) to account for floating-point precision
+    // Also add a debounce to prevent rapid successive calls
+
+    if (currentScroll >= maxScroll - 1.0 && _hasMore && !_isLoading) {
+      final now = DateTime.now();
+      if (_lastLoadMoreTime == null ||
+          now.difference(_lastLoadMoreTime!) > Duration(milliseconds: 100)) {
+        _lastLoadMoreTime = now;
+        _fetchMovies(_tabs[_selectedTab], loadMore: true);
+      }
     }
   }
 
