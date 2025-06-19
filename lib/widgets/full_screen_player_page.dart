@@ -54,7 +54,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   final Duration _speedIncrement = const Duration(seconds: 10);
   Timer? _speedIncreaseTimer;
   Timer? _volumeHUDTimer;
-  double _volume = 50.0;
+  double _volume = 100.0;
   bool _showVolumeHUD = false;
   StreamSubscription? _playerStateSubscription;
   StreamSubscription? _bufferingSubscription;
@@ -434,7 +434,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         _displayVolumeHUD(newVolume);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.audioVolumeMute:
-        final newVolume = _volume > 0 ? 0.0 : 50.0;
+        final newVolume = _volume > 0 ? 0.0 : 100.0;
         _player.setVolume(newVolume);
         _displayVolumeHUD(newVolume);
         return KeyEventResult.handled;
