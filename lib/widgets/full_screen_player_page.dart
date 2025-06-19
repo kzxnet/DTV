@@ -88,7 +88,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   }
 
   void _startControlsAutoHideTimer() {
-    Future.delayed(const Duration(seconds: 3), () {
+    Future.delayed(const Duration(seconds: 2), () {
       if (mounted && _playerFocusNode.hasFocus) {
         _toggleControlsVisibility(false);
       }
@@ -251,7 +251,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       await _player.pause();
       var processM3u8Url = await _processM3u8Url(url);
       await _player.open(Media(processM3u8Url));
-          _player.setVolume(_volume);
+      _player.setVolume(_volume);
 
       if (_episodeProgress.containsKey(index)) {
         await _player.seek(_episodeProgress[index]!);
@@ -531,15 +531,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                 builder: (context, visible, child) {
                   return Visibility(
                     visible: visible,
-                    child: _buildTopTitle(),
-                  );
-                },
-              ),
-              ValueListenableBuilder<bool>(
-                valueListenable: _controlsVisibility,
-                builder: (context, visible, child) {
-                  return Visibility(
-                    visible: visible,
                     child: _buildTopGradient(),
                   );
                 },
@@ -600,35 +591,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
           controller: _videoController,
           controls: null,
           wakelock: false,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTopTitle() {
-    return Positioned(
-      top: 40,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: AnimatedOpacity(
-          opacity: _controlsVisibility.value && !_player.state.playing ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 300),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              widget.episodes[_currentEpisodeIndex]['title'] ?? '当前剧集 ${_currentEpisodeIndex + 1}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
         ),
       ),
     );
