@@ -27,8 +27,8 @@ class M3U8AdRemover {
     }
 
     String urljoin(String fromPath, String nowPath) {
-      fromPath = fromPath ?? '';
-      nowPath = nowPath ?? '';
+      fromPath = fromPath;
+      nowPath = nowPath;
 
       try {
         final baseUri = Uri.parse(fromPath);
