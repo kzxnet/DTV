@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+
+import '../services/m3u8_ad_remover.dart';
 
 extension DurationClamp on Duration {
   Duration clamp(Duration min, Duration max) {
@@ -157,7 +161,8 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     });
 
     try {
-      await _player.open(Media(url));
+      var processM3u8Url =  await _processM3u8Url(url);
+      await _player.open(Media(processM3u8Url));
       _player.setVolume(_volume);
       _setupPlayerListeners();
 
@@ -244,7 +249,8 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
 
     try {
       await _player.pause();
-      await _player.open(Media(url));
+      var processM3u8Url = await _processM3u8Url(url);
+      await _player.open(Media(processM3u8Url));
           _player.setVolume(_volume);
 
       if (_episodeProgress.containsKey(index)) {
@@ -843,6 +849,27 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         ),
       ),
     );
+  }
+}
+
+Future<String> _processM3u8Url(String url) async {
+  if (!url.toLowerCase().endsWith('.m3u8')) return url;
+
+  try {
+    final cleanM3u8 = await M3U8AdRemover.fixAdM3u8Ai(url);
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/cleaned_${DateTime.now().millisecondsSinceEpoch}.m3u8');
+    await file.writeAsString(cleanM3u8);
+
+    if (!cleanM3u8.contains('#EXTM3U')) {
+      throw Exception('Invalid M3U8: Missing #EXTM3U');
+    }
+
+    debugPrint('Cleaned M3U8 saved to: ${file.path}');
+    return file.uri.toString();
+  } catch (e) {
+    debugPrint('M3U8处理失败，使用原始URL: $e');
+    return url;
   }
 }
 
