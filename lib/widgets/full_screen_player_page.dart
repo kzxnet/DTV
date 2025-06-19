@@ -57,7 +57,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   final ValueNotifier<int> _seekDirection = ValueNotifier(0);
   final ValueNotifier<Duration?> _seekPosition = ValueNotifier<Duration?>(null);
   Timer? _seekHideTimer;
-  final Duration _seekDisplayDuration = const Duration(seconds: 2);
+  final Duration _seekDisplayDuration = const Duration(seconds: 1);
 
   _FullScreenPlayerPageState() : _currentEpisodeIndex = 0;
 
