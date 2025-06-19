@@ -54,7 +54,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   final Duration _speedIncrement = const Duration(seconds: 10);
   Timer? _speedIncreaseTimer;
   Timer? _volumeHUDTimer;
-  double _volume = 0.5;
+  double _volume = 50.0;
   bool _showVolumeHUD = false;
   StreamSubscription? _playerStateSubscription;
   StreamSubscription? _bufferingSubscription;
@@ -424,17 +424,17 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         _stopSeek(Duration.zero);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.audioVolumeUp:
-        final newVolume = (_volume + 0.05).clamp(0.0, 1.0);
+        final newVolume = (_volume + 5).clamp(0.0, 100.0);
         _player.setVolume(newVolume);
         _displayVolumeHUD(newVolume);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.audioVolumeDown:
-        final newVolume = (_volume - 0.05).clamp(0.0, 1.0);
+        final newVolume = (_volume - 5).clamp(0.0, 100.0);
         _player.setVolume(newVolume);
         _displayVolumeHUD(newVolume);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.audioVolumeMute:
-        final newVolume = _volume > 0 ? 0.0 : 0.5;
+        final newVolume = _volume > 0 ? 0.0 : 50.0;
         _player.setVolume(newVolume);
         _displayVolumeHUD(newVolume);
         return KeyEventResult.handled;
@@ -690,7 +690,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                           size: 24,
                         ),
                         onPressed: () {
-                          final newVolume = _volume > 0 ? 0.0 : 0.5;
+                          final newVolume = _volume > 0 ? 0.0 : 50.0;
                           _player.setVolume(newVolume);
                           _displayVolumeHUD(newVolume);
                         },
