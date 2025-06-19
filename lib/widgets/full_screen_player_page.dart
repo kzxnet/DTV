@@ -1,11 +1,9 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:developer';
-import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:video_player/video_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
 extension DurationClamp on Duration {
   Duration clamp(Duration min, Duration max) {
@@ -32,8 +30,8 @@ class FullScreenPlayerPage extends StatefulWidget {
 }
 
 class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
-  late VideoPlayerController _controller;
-  ChewieController? _chewieController;
+  late final Player _player;
+  late final VideoController _videoController;
   int _currentEpisodeIndex;
   bool _isLoading = true;
   String? _errorMessage;
@@ -54,18 +52,23 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   Timer? _volumeHUDTimer;
   double _volume = 0.5;
   bool _showVolumeHUD = false;
+  StreamSubscription? _playerStateSubscription;
+  StreamSubscription? _bufferingSubscription;
+  final ValueNotifier<int> _seekDirection = ValueNotifier(0);
+  final ValueNotifier<Duration?> _seekPosition = ValueNotifier<Duration?>(null);
+  Timer? _seekHideTimer;
+  final Duration _seekDisplayDuration = const Duration(seconds: 2);
 
   _FullScreenPlayerPageState() : _currentEpisodeIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    log('movie: ${jsonEncode(widget.movie)}');
-    log('episodes: ${jsonEncode(widget.episodes)}');
-
+    MediaKit.ensureInitialized();
     _currentEpisodeIndex = widget.initialIndex;
+    _player = Player();
+    _videoController = VideoController(_player);
     _initializePlayer(widget.episodes[_currentEpisodeIndex]['url']!);
-
     _playerFocusNode.addListener(() {
       if (_playerFocusNode.hasFocus) {
         _toggleControlsVisibility(true);
@@ -96,26 +99,22 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     }
   }
 
-  void _setupWakelockListener() {
-    bool wasPlaying = false;
-    _controller.addListener(() {
-      final isPlaying = _controller.value.isPlaying;
-      if (wasPlaying != isPlaying) {
-        wasPlaying = isPlaying;
-        _controlWakelock(isPlaying);
+  void _setupPlayerListeners() {
+    _playerStateSubscription = _player.stream.playing.listen((isPlaying) {
+      _controlWakelock(isPlaying);
+    });
+
+    _bufferingSubscription = _player.stream.buffering.listen((isBuffering) {
+      if (_isBuffering.value != isBuffering) {
+        _isBuffering.value = isBuffering;
       }
     });
-  }
 
-  void _controllerListener() {
-    if (_controller.value.isPlaying) {
-      _episodeProgress[_currentEpisodeIndex] = _controller.value.position;
-    }
-
-    if (_controller.value.position >= _controller.value.duration &&
-        !_controller.value.isLooping) {
-      _playNextEpisode();
-    }
+    _player.stream.completed.listen((completed) {
+      if (completed) {
+        _playNextEpisode();
+      }
+    });
   }
 
   void _cleanupSeek() {
@@ -125,20 +124,26 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     _speedIncreaseTimer?.cancel();
     _speedIncreaseTimer = null;
     _currentSeekSpeed = _seekStep;
+    _seekHideTimer?.cancel();
+    _seekHideTimer = null;
     _isSeeking.value = false;
+    _seekDirection.value = 0;
+    _seekPosition.value = null;
   }
 
   @override
   void dispose() {
     _cleanupSeek();
     _episodeProgress.clear();
-    _controller.removeListener(_controllerListener);
-    _controller.dispose();
-    _chewieController?.dispose();
+    _playerStateSubscription?.cancel();
+    _bufferingSubscription?.cancel();
+    _player.dispose();
     _playerFocusNode.dispose();
     _controlsVisibility.dispose();
     _isSeeking.dispose();
     _isBuffering.dispose();
+    _seekDirection.dispose();
+    _seekPosition.dispose();
     _volumeHUDTimer?.cancel();
     WakelockPlus.disable().ignore();
     super.dispose();
@@ -152,50 +157,13 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     });
 
     try {
-      _controller = VideoPlayerController.networkUrl(Uri.parse(url));
-
-      _controller.addListener(() {
-        if (_isBuffering.value != _controller.value.isBuffering) {
-          _isBuffering.value = _controller.value.isBuffering;
-        }
-      });
-
-      await _controller.initialize();
-      _controller.setVolume(_volume);
-      _setupWakelockListener();
-      _controller.addListener(_controllerListener);
+      await _player.open(Media(url));
+      _player.setVolume(_volume);
+      _setupPlayerListeners();
 
       if (_episodeProgress.containsKey(_currentEpisodeIndex)) {
-        await _controller.seekTo(_episodeProgress[_currentEpisodeIndex]!);
+        await _player.seek(_episodeProgress[_currentEpisodeIndex]!);
       }
-
-      _chewieController = ChewieController(
-        videoPlayerController: _controller,
-        autoPlay: true,
-        looping: false,
-        allowFullScreen: false,
-        allowedScreenSleep: false,
-        showControls: false,
-        draggableProgressBar: false,
-        showControlsOnInitialize: false,
-        showOptions: false,
-        allowPlaybackSpeedChanging: false,
-        useRootNavigator: false,
-        materialProgressColors: ChewieProgressColors(
-          playedColor: const Color(0xFF0066FF),
-          handleColor: const Color(0xFF0066FF),
-          backgroundColor: Colors.grey,
-          bufferedColor: Colors.grey[300]!,
-        ),
-        errorBuilder: (context, errorMessage) {
-          return Center(
-            child: Text(
-              errorMessage,
-              style: const TextStyle(color: Colors.white, fontSize: 20),
-            ),
-          );
-        },
-      );
 
       if (mounted) {
         setState(() => _isLoading = false);
@@ -219,12 +187,12 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     if (nextUrl == null || nextUrl.isEmpty) return;
 
     try {
-      final preloadController = VideoPlayerController.networkUrl(Uri.parse(nextUrl));
-      await preloadController.initialize();
-      await preloadController.pause();
-      await preloadController.setVolume(0);
-      await preloadController.seekTo(Duration.zero);
-      await preloadController.dispose();
+      final preloadPlayer = Player();
+      await preloadPlayer.open(Media(nextUrl));
+      await preloadPlayer.pause();
+      await preloadPlayer.setVolume(0);
+      await preloadPlayer.seek(Duration.zero);
+      await preloadPlayer.dispose();
     } catch (e) {
       debugPrint('预加载下一集失败: $e');
     }
@@ -262,9 +230,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       );
     }
 
-    if (_controller.value.isInitialized) {
-      _episodeProgress[_currentEpisodeIndex] = _controller.value.position;
-    }
+    _episodeProgress[_currentEpisodeIndex] = _player.state.position;
 
     final url = widget.episodes[index]['url'];
     if (url == null || url.isEmpty) {
@@ -277,68 +243,18 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     }
 
     try {
-      await _controller.pause();
-      await _controller.dispose();
-      _chewieController?.dispose();
-    } catch (e) {
-      debugPrint('释放旧控制器错误: $e');
-    }
+      await _player.pause();
+      await _player.open(Media(url));
+          _player.setVolume(_volume);
 
-    setState(() {
-      _currentEpisodeIndex = index;
-      _isLoading = true;
-      _errorMessage = null;
-      _isBuffering.value = true;
-    });
-
-    try {
-      _controller = VideoPlayerController.networkUrl(Uri.parse(url));
-
-      _controller.addListener(() {
-        if (_isBuffering.value != _controller.value.isBuffering) {
-          _isBuffering.value = _controller.value.isBuffering;
-        }
-      });
-
-      await _controller.initialize();
-      _controller.setVolume(_volume);
-      _setupWakelockListener();
-
-      if (_episodeProgress.containsKey(_currentEpisodeIndex)) {
-        await _controller.seekTo(_episodeProgress[_currentEpisodeIndex]!);
+      if (_episodeProgress.containsKey(index)) {
+        await _player.seek(_episodeProgress[index]!);
       }
 
-      _controller.addListener(_controllerListener);
-
-      _chewieController = ChewieController(
-        videoPlayerController: _controller,
-        autoPlay: true,
-        looping: false,
-        allowFullScreen: false,
-        allowedScreenSleep: false,
-        showControls: false,
-        draggableProgressBar: false,
-        showControlsOnInitialize: false,
-        showOptions: false,
-        allowPlaybackSpeedChanging: false,
-        useRootNavigator: false,
-        materialProgressColors: ChewieProgressColors(
-          playedColor: const Color(0xFF0066FF),
-          handleColor: const Color(0xFF0066FF),
-          backgroundColor: Colors.grey,
-          bufferedColor: Colors.grey[300]!,
-        ),
-        errorBuilder: (context, errorMessage) {
-          return Center(
-            child: Text(
-              errorMessage,
-              style: const TextStyle(color: Colors.white, fontSize: 20),
-            ),
-          );
-        },
-      );
-
-      if (mounted) setState(() => _isLoading = false);
+      setState(() {
+        _currentEpisodeIndex = index;
+        _isLoading = false;
+      });
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -355,7 +271,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     if (_currentEpisodeIndex < widget.episodes.length - 1) {
       _changeEpisode(_currentEpisodeIndex + 1);
     } else {
-      _controller.pause();
+      _player.pause();
       if (mounted) {
         _toggleControlsVisibility(true);
       }
@@ -365,7 +281,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
 
   void _togglePlayPause() {
     _toggleControlsVisibility(true);
-    _controller.value.isPlaying ? _controller.pause() : _controller.play();
+    _player.state.playing ? _player.pause() : _player.play();
   }
 
   void _startSeek(Duration step) {
@@ -373,13 +289,17 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
 
     _isLongPressing = true;
     _currentSeekSpeed = _seekStep;
+    _seekDirection.value = step.inSeconds.sign;
 
-    _handleSeek(step);
+    _updateSeekPosition(step);
+
+    _resetSeekHideTimer();
 
     _seekTimer?.cancel();
     _seekTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (_isLongPressing) {
-        _handleSeek(_currentSeekSpeed * step.inSeconds.sign);
+        _updateSeekPosition(_currentSeekSpeed * _seekDirection.value);
+        _resetSeekHideTimer();
       } else {
         timer.cancel();
       }
@@ -394,24 +314,43 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
     });
   }
 
-  void _stopSeek(Duration step) {
-    _cleanupSeek();
+  void _resetSeekHideTimer() {
+    _seekHideTimer?.cancel();
+    _seekHideTimer = Timer(_seekDisplayDuration, () {
+      if (!_isLongPressing) {
+        _seekPosition.value = null;
+        _isSeeking.value = false;
+      }
+    });
   }
 
-  void _handleSeek(Duration duration) {
-    if (!_controller.value.isInitialized) return;
-
-    _toggleControlsVisibility(true);
-    _isSeeking.value = true;
-
-    final newPosition = _controller.value.position + duration;
-    _controller.seekTo(
-      newPosition.clamp(Duration.zero, _controller.value.duration),
+  void _updateSeekPosition(Duration step) {
+    final newPosition = (_player.state.position + step).clamp(
+        Duration.zero,
+        _player.state.duration
     );
+    _seekPosition.value = newPosition;
+    _isSeeking.value = true;
+    _player.seek(newPosition);
+  }
 
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) _isSeeking.value = false;
-    });
+  void _stopSeek(Duration step) {
+    _isLongPressing = false;
+    _seekTimer?.cancel();
+    _seekTimer = null;
+    _speedIncreaseTimer?.cancel();
+    _speedIncreaseTimer = null;
+    _currentSeekSpeed = _seekStep;
+
+    if (step != Duration.zero) {
+      final newPosition = (_player.state.position + step).clamp(
+          Duration.zero,
+          _player.state.duration
+      );
+      _player.seek(newPosition);
+    }
+
+    _resetSeekHideTimer();
   }
 
   void _displayVolumeHUD(double volume) {
@@ -480,17 +419,17 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
         return KeyEventResult.handled;
       case LogicalKeyboardKey.audioVolumeUp:
         final newVolume = (_volume + 0.05).clamp(0.0, 1.0);
-        _controller.setVolume(newVolume);
+        _player.setVolume(newVolume);
         _displayVolumeHUD(newVolume);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.audioVolumeDown:
         final newVolume = (_volume - 0.05).clamp(0.0, 1.0);
-        _controller.setVolume(newVolume);
+        _player.setVolume(newVolume);
         _displayVolumeHUD(newVolume);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.audioVolumeMute:
         final newVolume = _volume > 0 ? 0.0 : 0.5;
-        _controller.setVolume(newVolume);
+        _player.setVolume(newVolume);
         _displayVolumeHUD(newVolume);
         return KeyEventResult.handled;
       default:
@@ -504,6 +443,17 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    final seconds = duration.inSeconds.remainder(60);
+
+    return hours > 0
+        ? '${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}'
+        : '${twoDigits(minutes)}:${twoDigits(seconds)}';
   }
 
   @override
@@ -542,7 +492,6 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
               ValueListenableBuilder<bool>(
                 valueListenable: _isBuffering,
                 builder: (context, buffering, child) {
-                  if (!_controller.value.isInitialized) return const SizedBox();
                   return Visibility(
                     visible: buffering,
                     child: Center(
@@ -598,15 +547,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                   );
                 },
               ),
-              ValueListenableBuilder<bool>(
-                valueListenable: _isSeeking,
-                builder: (context, seeking, child) {
-                  return Visibility(
-                    visible: seeking,
-                    child: _buildSeekIndicator(),
-                  );
-                },
-              ),
+              _buildSeekIndicator(),
               if (_showVolumeHUD) _buildVolumeHUD(),
             ],
           ),
@@ -621,7 +562,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       focusNode: _playerFocusNode,
       onKeyEvent: _handleKeyEvent,
       child: Center(
-        child: _isLoading && !_controller.value.isInitialized
+        child: _isLoading
             ? const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -649,7 +590,11 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
             ),
           ],
         )
-            : Chewie(controller: _chewieController!),
+            : Video(
+          controller: _videoController,
+          controls: null,
+          wakelock: false,
+        ),
       ),
     );
   }
@@ -661,7 +606,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
       right: 0,
       child: Center(
         child: AnimatedOpacity(
-          opacity: _controlsVisibility.value && !_controller.value.isPlaying ? 1.0 : 0.0,
+          opacity: _controlsVisibility.value && !_player.state.playing ? 1.0 : 0.0,
           duration: const Duration(milliseconds: 300),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -720,14 +665,20 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: VideoProgressIndicator(
-                _controller,
-                allowScrubbing: true,
-                colors: VideoProgressColors(
-                  playedColor: const Color(0xFF0066FF),
-                  bufferedColor: Colors.grey,
-                  backgroundColor: Colors.grey[600]!,
-                ),
+              child: StreamBuilder<Duration>(
+                stream: _player.stream.position,
+                builder: (context, snapshot) {
+                  final position = snapshot.data ?? Duration.zero;
+                  final duration = _player.state.duration;
+                  return LinearProgressIndicator(
+                    value: duration.inMilliseconds > 0
+                        ? position.inMilliseconds / duration.inMilliseconds
+                        : 0,
+                    valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF0066FF)),
+                    backgroundColor: Colors.grey[600],
+                    minHeight: 4,
+                  );
+                },
               ),
             ),
             const SizedBox(height: 4),
@@ -745,7 +696,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                     children: [
                       IconButton(
                         icon: Icon(
-                          _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+                          _player.state.playing ? Icons.pause : Icons.play_arrow,
                           color: Colors.white,
                           size: 28,
                         ),
@@ -772,7 +723,7 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
                         ),
                         onPressed: () {
                           final newVolume = _volume > 0 ? 0.0 : 0.5;
-                          _controller.setVolume(newVolume);
+                          _player.setVolume(newVolume);
                           _displayVolumeHUD(newVolume);
                         },
                       ),
@@ -789,27 +740,72 @@ class _FullScreenPlayerPageState extends State<FullScreenPlayerPage> {
   }
 
   Widget _buildSeekIndicator() {
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 140,
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.black54,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text(
-            _controller.value.position.toString().split('.')[0],
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+    return ValueListenableBuilder<Duration?>(
+      valueListenable: _seekPosition,
+      builder: (context, seekPos, child) {
+        if (seekPos == null) return const SizedBox.shrink();
+
+        return Positioned(
+          left: 0,
+          right: 0,
+          bottom: 140,
+          child: Center(
+            child: ValueListenableBuilder<int>(
+              valueListenable: _seekDirection,
+              builder: (context, direction, child) {
+                return AnimatedOpacity(
+                  opacity: _isSeeking.value ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 300),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          direction > 0 ? Icons.fast_forward : Icons.fast_rewind,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _formatDuration(seekPos),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          ' / ${_formatDuration(_player.state.duration)}',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                        if (_currentSeekSpeed > _seekStep)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8.0),
+                            child: Text(
+                              'x${(_currentSeekSpeed.inSeconds / _seekStep.inSeconds).toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
